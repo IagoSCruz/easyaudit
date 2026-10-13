@@ -1,0 +1,70 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit carriers
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    Carrier:
+      type: object
+      required: [id, cnpj, name, active, autoRegistered, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        cnpj:
+          $ref: "common.yaml#/components/schemas/Cnpj"
+        name:
+          type: string
+        active:
+          type: boolean
+        autoRegistered:
+          type: boolean
+          description: Verdadeiro quando a transportadora foi cadastrada automaticamente a partir de um CT-e.
+        createdAt:
+          type: string
+          format: date-time
+    CreateCarrierRequest:
+      type: object
+      required: [cnpj, name]
+      properties:
+        cnpj:
+          $ref: "common.yaml#/components/schemas/CnpjInput"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+    UpdateCarrierRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        active:
+          type: boolean
+    ComponentAlias:
+      type: object
+      required: [id, alias, componentCode, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        alias:
+          type: string
+          description: Nome do componente como a transportadora o escreve.
+        componentCode:
+          $ref: "cte.yaml#/components/schemas/ComponentCode"
+        createdAt:
+          type: string
+          format: date-time
+    CreateComponentAliasRequest:
+      type: object
+      required: [alias, componentCode]
+      properties:
+        alias:
+          type: string
+          minLength: 1
+          maxLength: 200
+        componentCode:
+          $ref: "cte.yaml#/components/schemas/ComponentCode"

@@ -1,0 +1,151 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit settlement
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    BatchStatus:
+      type: string
+      enum: [OPEN, PAID, CANCELLED]
+    # Sem `minimum`/`maxItems` nas listas e nas datas de propósito: o serviço valida e devolve 422 com o nome do campo
+    # (e a lista dos casos inválidos).
+    CreatePaymentBatchRequest:
+      type: object
+      required: [dueDate, caseIds]
+      properties:
+        dueDate:
+          type: string
+          format: date
+        description:
+          type: string
+          maxLength: 500
+        caseIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    BatchCasesRequest:
+      type: object
+      required: [caseIds]
+      properties:
+        caseIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    RegisterPaymentRequest:
+      type: object
+      required: [paidOn, reference]
+      properties:
+        paidOn:
+          type: string
+          format: date
+          description: Data do pagamento; não pode ser futura.
+        reference:
+          type: string
+          maxLength: 200
+          description: Identificador do comprovante (por exemplo, o E2E do PIX).
+    PaymentBatchSummary:
+      type: object
+      required: [id, status, carrierRoot, dueDate, caseCount, chargedTotal, approvedTotal, savingsTotal, createdAt, createdBy]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/BatchStatus"
+        carrierRoot:
+          type: string
+          description: Raiz do CNPJ da transportadora do lote (8 caracteres).
+        carrierName:
+          type: string
+        description:
+          type: string
+        dueDate:
+          type: string
+          format: date
+        caseCount:
+          type: integer
+          format: int32
+        chargedTotal:
+          type: number
+        approvedTotal:
+          type: number
+        savingsTotal:
+          type: number
+        paidOn:
+          type: string
+          format: date
+        paymentReference:
+          type: string
+        paidBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+    PaymentBatchItem:
+      type: object
+      required: [caseId, cteAccessKey, chargedAmount, approvedAmount, savingsAmount]
+      properties:
+        caseId:
+          type: string
+          format: uuid
+        cteAccessKey:
+          type: string
+        cteNumber:
+          type: string
+        cteSeries:
+          type: string
+        emissionDate:
+          type: string
+          format: date
+        carrierCnpj:
+          type: string
+        chargedAmount:
+          type: number
+        approvedAmount:
+          type: number
+        savingsAmount:
+          type: number
+    PaymentBatchExport:
+      type: object
+      required: [id, exportedAt, exportedBy, rowCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+        exportedAt:
+          type: string
+          format: date-time
+        exportedBy:
+          type: string
+        rowCount:
+          type: integer
+          format: int32
+    PaymentBatchDetail:
+      type: object
+      required: [batch, items, exports]
+      properties:
+        batch:
+          $ref: "#/components/schemas/PaymentBatchSummary"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentBatchItem"
+        exports:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentBatchExport"
+    PaymentBatchPage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentBatchSummary"
+        page:
+          $ref: "common.yaml#/components/schemas/PageMeta"

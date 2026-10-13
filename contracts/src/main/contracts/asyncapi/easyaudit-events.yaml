@@ -1,0 +1,230 @@
+asyncapi: 3.0.0
+info:
+  title: EasyAudit events
+  version: 0.1.0
+  description: Exchange topic `easyaudit.events`; a routing key é o `eventType`.
+servers:
+  rabbitmq:
+    host: localhost:5672
+    protocol: amqp
+    description: Exchange `easyaudit.events` (topic, durável).
+channels:
+  document_received:
+    address: document.received
+    messages:
+      DocumentReceived:
+        $ref: '#/components/messages/DocumentReceived'
+  document_normalized:
+    address: document.normalized
+    messages:
+      DocumentNormalized:
+        $ref: '#/components/messages/DocumentNormalized'
+  document_link_resolved:
+    address: document.link-resolved
+    messages:
+      DocumentLinkResolved:
+        $ref: '#/components/messages/DocumentLinkResolved'
+  document_cancelled:
+    address: document.cancelled
+    messages:
+      DocumentCancelled:
+        $ref: '#/components/messages/DocumentCancelled'
+  quote_linked:
+    address: quote.linked
+    messages:
+      QuoteLinked:
+        $ref: '#/components/messages/QuoteLinked'
+  quote_revised:
+    address: quote.revised
+    messages:
+      QuoteRevised:
+        $ref: '#/components/messages/QuoteRevised'
+  freight_table_activated:
+    address: freight-table.activated
+    messages:
+      FreightTableActivated:
+        $ref: '#/components/messages/FreightTableActivated'
+  audit_completed:
+    address: audit.completed
+    messages:
+      AuditCompleted:
+        $ref: '#/components/messages/AuditCompleted'
+  audit_status_changed:
+    address: audit.status-changed
+    messages:
+      AuditStatusChanged:
+        $ref: '#/components/messages/AuditStatusChanged'
+operations:
+  publish_document_received:
+    action: send
+    channel:
+      $ref: '#/channels/document_received'
+    messages:
+    - $ref: '#/channels/document_received/messages/DocumentReceived'
+  publish_document_normalized:
+    action: send
+    channel:
+      $ref: '#/channels/document_normalized'
+    messages:
+    - $ref: '#/channels/document_normalized/messages/DocumentNormalized'
+  publish_document_link_resolved:
+    action: send
+    channel:
+      $ref: '#/channels/document_link_resolved'
+    messages:
+    - $ref: '#/channels/document_link_resolved/messages/DocumentLinkResolved'
+  publish_document_cancelled:
+    action: send
+    channel:
+      $ref: '#/channels/document_cancelled'
+    messages:
+    - $ref: '#/channels/document_cancelled/messages/DocumentCancelled'
+  publish_quote_linked:
+    action: send
+    channel:
+      $ref: '#/channels/quote_linked'
+    messages:
+    - $ref: '#/channels/quote_linked/messages/QuoteLinked'
+  publish_quote_revised:
+    action: send
+    channel:
+      $ref: '#/channels/quote_revised'
+    messages:
+    - $ref: '#/channels/quote_revised/messages/QuoteRevised'
+  publish_freight_table_activated:
+    action: send
+    channel:
+      $ref: '#/channels/freight_table_activated'
+    messages:
+    - $ref: '#/channels/freight_table_activated/messages/FreightTableActivated'
+  publish_audit_completed:
+    action: send
+    channel:
+      $ref: '#/channels/audit_completed'
+    messages:
+    - $ref: '#/channels/audit_completed/messages/AuditCompleted'
+  publish_audit_status_changed:
+    action: send
+    channel:
+      $ref: '#/channels/audit_status_changed'
+    messages:
+    - $ref: '#/channels/audit_status_changed/messages/AuditStatusChanged'
+components:
+  messages:
+    DocumentReceived:
+      name: DocumentReceived
+      title: document.received
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: ../schemas/events.yaml#/components/schemas/EventEnvelope
+        - type: object
+          properties:
+            eventType:
+              const: document.received
+            data:
+              $ref: ../schemas/events.yaml#/components/schemas/DocumentReceivedData
+    DocumentNormalized:
+      name: DocumentNormalized
+      title: document.normalized
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: ../schemas/events.yaml#/components/schemas/EventEnvelope
+        - type: object
+          properties:
+            eventType:
+              const: document.normalized
+            data:
+              $ref: ../schemas/events.yaml#/components/schemas/DocumentNormalizedData
+    DocumentLinkResolved:
+      name: DocumentLinkResolved
+      title: document.link-resolved
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: ../schemas/events.yaml#/components/schemas/EventEnvelope
+        - type: object
+          properties:
+            eventType:
+              const: document.link-resolved
+            data:
+              $ref: ../schemas/events.yaml#/components/schemas/DocumentLinkResolvedData
+    DocumentCancelled:
+      name: DocumentCancelled
+      title: document.cancelled
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: ../schemas/events.yaml#/components/schemas/EventEnvelope
+        - type: object
+          properties:
+            eventType:
+              const: document.cancelled
+            data:
+              $ref: ../schemas/events.yaml#/components/schemas/DocumentCancelledData
+    QuoteLinked:
+      name: QuoteLinked
+      title: quote.linked
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: ../schemas/events.yaml#/components/schemas/EventEnvelope
+        - type: object
+          properties:
+            eventType:
+              const: quote.linked
+            data:
+              $ref: ../schemas/events.yaml#/components/schemas/QuoteLinkedData
+    QuoteRevised:
+      name: QuoteRevised
+      title: quote.revised
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: ../schemas/events.yaml#/components/schemas/EventEnvelope
+        - type: object
+          properties:
+            eventType:
+              const: quote.revised
+            data:
+              $ref: ../schemas/events.yaml#/components/schemas/QuoteRevisedData
+    FreightTableActivated:
+      name: FreightTableActivated
+      title: freight-table.activated
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: ../schemas/events.yaml#/components/schemas/EventEnvelope
+        - type: object
+          properties:
+            eventType:
+              const: freight-table.activated
+            data:
+              $ref: ../schemas/events.yaml#/components/schemas/FreightTableActivatedData
+    AuditCompleted:
+      name: AuditCompleted
+      title: audit.completed
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: ../schemas/events.yaml#/components/schemas/EventEnvelope
+        - type: object
+          properties:
+            eventType:
+              const: audit.completed
+            data:
+              $ref: ../schemas/events.yaml#/components/schemas/AuditCompletedData
+    AuditStatusChanged:
+      name: AuditStatusChanged
+      title: audit.status-changed
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: ../schemas/events.yaml#/components/schemas/EventEnvelope
+        - type: object
+          properties:
+            eventType:
+              const: audit.status-changed
+            data:
+              $ref: ../schemas/events.yaml#/components/schemas/AuditStatusChangedData

@@ -1,0 +1,33 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit Events (models only)
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    Classification:
+      $ref: ../schemas/events.yaml#/components/schemas/Classification
+    CaseStatus:
+      $ref: ../schemas/events.yaml#/components/schemas/CaseStatus
+    EventType:
+      $ref: ../schemas/events.yaml#/components/schemas/EventType
+    EventEnvelope:
+      $ref: ../schemas/events.yaml#/components/schemas/EventEnvelope
+    DocumentReceivedData:
+      $ref: ../schemas/events.yaml#/components/schemas/DocumentReceivedData
+    DocumentNormalizedData:
+      $ref: ../schemas/events.yaml#/components/schemas/DocumentNormalizedData
+    DocumentLinkResolvedData:
+      $ref: ../schemas/events.yaml#/components/schemas/DocumentLinkResolvedData
+    DocumentCancelledData:
+      $ref: ../schemas/events.yaml#/components/schemas/DocumentCancelledData
+    QuoteLinkedData:
+      $ref: ../schemas/events.yaml#/components/schemas/QuoteLinkedData
+    QuoteRevisedData:
+      $ref: ../schemas/events.yaml#/components/schemas/QuoteRevisedData
+    FreightTableActivatedData:
+      $ref: ../schemas/events.yaml#/components/schemas/FreightTableActivatedData
+    AuditCompletedData:
+      $ref: ../schemas/events.yaml#/components/schemas/AuditCompletedData
+    AuditStatusChangedData:
+      $ref: ../schemas/events.yaml#/components/schemas/AuditStatusChangedData

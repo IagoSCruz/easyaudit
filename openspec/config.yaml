@@ -1,0 +1,52 @@
+schema: spec-driven
+
+context: |
+  Documentação de bibliotecas: sempre que um artefato ou implementação depender de API,
+  configuração, versão ou CLI de uma biblioteca/framework/ferramenta externa (ex.: Spring Boot,
+  Maven, PostgreSQL, RabbitMQ, Keycloak, OpenAPI/AsyncAPI generators, Docker Compose),
+  consulte a documentação atual pelo MCP do Context7 antes de decidir ou escrever código:
+  1) `resolve-library-id` com o nome da biblioteca; 2) `query-docs` com o ID escolhido,
+  uma consulta por conceito. Use IDs com versão quando a versão for conhecida.
+  Não confie só no conhecimento prévio para APIs de bibliotecas.
+
+rules:
+  design:
+    - Validar no Context7 as APIs, versões e configurações de bibliotecas citadas nas decisões técnicas
+  tasks:
+    - Em tarefas que usam APIs de bibliotecas externas, indicar que a implementação deve consultar o Context7 antes
+
+operations:
+  apply:
+    guidance:
+      - Antes de escrever código que use uma biblioteca/framework externo, consultar a documentação atual via Context7 MCP (resolve-library-id → query-docs)
+
+# Project context (optional)
+# Add only constraints that should guide OpenSpec artifacts and workflows.
+# Include constraints an agent cannot infer by reading the code.
+# Keep general project documentation and discoverable codebase facts out.
+# Example:
+#   context: |
+#     Designs and tasks must cover Windows, macOS, and Linux
+#     Write all artifacts in Spanish
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

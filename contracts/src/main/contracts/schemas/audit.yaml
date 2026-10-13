@@ -1,0 +1,457 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit audit
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    CaseStatus:
+      type: string
+      enum: [PENDING_AUDIT, COMPLIANT, DIVERGENT, NOT_AUDITABLE, DISPUTED, APPROVED, SCHEDULED_FOR_PAYMENT, PAID, CANCELLED]
+    Classification:
+      type: string
+      enum: [COMPLIANT, DIVERGENT, NOT_AUDITABLE]
+    # Políticas de tolerância. Os campos de limite não usam `minimum`/`maximum` de propósito: o serviço valida e
+    # devolve 422 com o nome do campo.
+    AuditPolicy:
+      type: object
+      description: Política efetiva (todos os campos preenchidos).
+      required: [absoluteTolerance, percentTolerance, autoApprove, weightTolerancePercent, cargoValueTolerancePercent]
+      properties:
+        absoluteTolerance:
+          type: number
+          description: Tolerância absoluta em R$ (≥ 0).
+        percentTolerance:
+          type: number
+          description: Tolerância percentual sobre o valor de referência (0 a 100).
+        autoApprove:
+          type: boolean
+          description: Aprova automaticamente os casos conformes.
+        weightTolerancePercent:
+          type: number
+          description: Tolerância de peso em % (0 a 100).
+        cargoValueTolerancePercent:
+          type: number
+          description: Tolerância de valor de carga em % (0 a 100).
+    AuditPolicyOverrides:
+      type: object
+      description: Campos que a política da transportadora substitui; os não informados herdam da política do tenant.
+      properties:
+        absoluteTolerance:
+          type: number
+        percentTolerance:
+          type: number
+        autoApprove:
+          type: boolean
+        weightTolerancePercent:
+          type: number
+        cargoValueTolerancePercent:
+          type: number
+    CarrierAuditPolicy:
+      type: object
+      required: [overrides, effective]
+      properties:
+        overrides:
+          $ref: "#/components/schemas/AuditPolicyOverrides"
+        effective:
+          $ref: "#/components/schemas/AuditPolicy"
+    AuditCaseSummary:
+      type: object
+      required: [id, cteDocumentId, cteAccessKey, status, version, carrierCnpj, chargedAmount, currentRevision, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        cteDocumentId:
+          type: string
+          format: uuid
+        cteAccessKey:
+          type: string
+        cteNumber:
+          type: string
+        cteSeries:
+          type: string
+        status:
+          $ref: "#/components/schemas/CaseStatus"
+        version:
+          type: integer
+          format: int64
+          description: Versão do caso; as ações manuais devem informar a que o usuário viu.
+        carrierId:
+          type: string
+          format: uuid
+        carrierCnpj:
+          type: string
+        carrierName:
+          type: string
+        emissionDate:
+          type: string
+          format: date
+        destinationUf:
+          type: string
+        chargedAmount:
+          type: number
+        referenceAmount:
+          type: number
+        divergenceAmount:
+          type: number
+        failedChecks:
+          type: array
+          items:
+            type: string
+        alerts:
+          type: array
+          items:
+            type: string
+        approvedAmount:
+          type: number
+        currentRevision:
+          type: integer
+          format: int32
+        createdAt:
+          type: string
+          format: date-time
+
+    ApproveCaseRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: Versão do caso que o usuário viu.
+        approvedAmount:
+          type: number
+          description: Valor aprovado, entre zero e o cobrado. Omitido, vale o valor cobrado.
+        justification:
+          type: string
+          maxLength: 2000
+          description: Obrigatória quando o caso não é COMPLIANT ou o valor aprovado difere do cobrado.
+    BatchApproveItem:
+      type: object
+      required: [caseId, version]
+      properties:
+        caseId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          format: int64
+    BatchApproveRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/BatchApproveItem"
+        justification:
+          type: string
+          maxLength: 2000
+    BatchApproveItemResult:
+      type: object
+      required: [caseId, success]
+      properties:
+        caseId:
+          type: string
+          format: uuid
+        success:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/CaseStatus"
+        version:
+          type: integer
+          format: int64
+        approvedAmount:
+          type: number
+        errorCode:
+          type: string
+        errorMessage:
+          type: string
+    BatchApproveResponse:
+      type: object
+      required: [items, succeeded, failed]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchApproveItemResult"
+        succeeded:
+          type: integer
+          format: int32
+        failed:
+          type: integer
+          format: int32
+    DisputeCategory:
+      type: string
+      enum: [VALUE_ABOVE_REFERENCE, DUPLICATE_CHARGE, WEIGHT_DIVERGENCE, UNDUE_COMPONENT, OTHER]
+    DisputeCaseRequest:
+      type: object
+      required: [version, category, description, amountDue]
+      properties:
+        version:
+          type: integer
+          format: int64
+        category:
+          $ref: "#/components/schemas/DisputeCategory"
+        description:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        amountDue:
+          type: number
+          description: Valor que o lojista considera devido.
+    ResolveDisputeRequest:
+      type: object
+      required: [version, agreedAmount, note]
+      properties:
+        version:
+          type: integer
+          format: int64
+        agreedAmount:
+          type: number
+          description: Valor acordado, entre zero e o cobrado.
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    WithdrawDisputeRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+          format: int64
+        note:
+          type: string
+          maxLength: 2000
+    ReopenCaseRequest:
+      type: object
+      required: [version, reason]
+      properties:
+        version:
+          type: integer
+          format: int64
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    AuditCasePage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditCaseSummary"
+        page:
+          $ref: "common.yaml#/components/schemas/PageMeta"
+    AuditRevisionSummary:
+      type: object
+      required: [revision, trigger, classification, createdAt]
+      properties:
+        revision:
+          type: integer
+          format: int32
+        trigger:
+          type: string
+          enum: [INITIAL, LINK_RESOLVED, QUOTE_CHANGED, TABLE_ACTIVATED, MANUAL]
+        classification:
+          $ref: "#/components/schemas/Classification"
+        chargedAmount:
+          type: number
+        referenceAmount:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+    AuditRevisionDetail:
+      type: object
+      required: [revision, trigger, classification, createdAt, snapshot]
+      properties:
+        revision:
+          type: integer
+          format: int32
+        trigger:
+          type: string
+          enum: [INITIAL, LINK_RESOLVED, QUOTE_CHANGED, TABLE_ACTIVATED, MANUAL]
+        classification:
+          $ref: "#/components/schemas/Classification"
+        chargedAmount:
+          type: number
+        referenceAmount:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        snapshot:
+          type: object
+          additionalProperties: true
+          description: >
+            Fotografia imutável da auditoria: `input` (CT-e, NF-es, política, tabela e cotação usadas) e `outcome`
+            (classificação, cálculo, comparação por componente e todas as verificações).
+    CaseTransition:
+      type: object
+      required: [fromStatus, toStatus, actor, action, createdAt]
+      properties:
+        fromStatus:
+          $ref: "#/components/schemas/CaseStatus"
+        toStatus:
+          $ref: "#/components/schemas/CaseStatus"
+        actor:
+          type: string
+        action:
+          type: string
+        note:
+          type: string
+        approvedAmount:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+    DisputeInfo:
+      type: object
+      required: [category, description, amountDue, status, createdBy, createdAt]
+      properties:
+        category:
+          $ref: "#/components/schemas/DisputeCategory"
+        description:
+          type: string
+        amountDue:
+          type: number
+        status:
+          type: string
+          enum: [OPEN, RESOLVED, WITHDRAWN]
+        agreedAmount:
+          type: number
+        resolutionNote:
+          type: string
+        revision:
+          type: integer
+          format: int32
+          description: Revisão vigente quando a contestação foi aberta.
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+    AuditCaseDetail:
+      type: object
+      required: [case, previousRevisions, history, linkedNfes, pendingNfeKeys]
+      properties:
+        case:
+          $ref: "#/components/schemas/AuditCaseSummary"
+        cte:
+          $ref: "cte.yaml#/components/schemas/CanonicalCte"
+        linkedNfes:
+          type: array
+          items:
+            $ref: "nfe.yaml#/components/schemas/CanonicalNfe"
+        pendingNfeKeys:
+          type: array
+          items:
+            type: string
+        quote:
+          type: object
+          additionalProperties: true
+          description: Cotação usada na revisão vigente, quando houve.
+        currentRevision:
+          $ref: "#/components/schemas/AuditRevisionDetail"
+        previousRevisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditRevisionSummary"
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseTransition"
+        dispute:
+          $ref: "#/components/schemas/DisputeInfo"
+        batchId:
+          type: string
+          format: uuid
+    StatusTotals:
+      type: object
+      required: [status, count, chargedAmount]
+      properties:
+        status:
+          $ref: "#/components/schemas/CaseStatus"
+        count:
+          type: integer
+          format: int64
+        chargedAmount:
+          type: number
+    DashboardSummary:
+      type: object
+      required: [byStatus, totalCharged, totalReference, totalDivergence, totalApproved, savings, caseCount]
+      properties:
+        byStatus:
+          type: array
+          description: Uma linha por estado, inclusive os zerados.
+          items:
+            $ref: "#/components/schemas/StatusTotals"
+        caseCount:
+          type: integer
+          format: int64
+          description: Casos do período, exceto os CANCELLED.
+        totalCharged:
+          type: number
+          description: Total cobrado nos casos do período, exceto os CANCELLED.
+        totalReference:
+          type: number
+          description: Total de referência (tabela ou cotação) dos casos auditados.
+        totalDivergence:
+          type: number
+          description: Divergência total dos casos DIVERGENT.
+        totalApproved:
+          type: number
+          description: Valor aprovado nos casos APPROVED, SCHEDULED_FOR_PAYMENT e PAID.
+        savings:
+          type: number
+          description: Cobrado menos aprovado nos casos APPROVED, SCHEDULED_FOR_PAYMENT e PAID.
+        conformanceRate:
+          type: number
+          nullable: true
+          description: >
+            Percentual de casos COMPLIANT entre os classificados como COMPLIANT ou DIVERGENT (classificação vigente);
+            nulo quando não há casos classificados.
+    CarrierRankingRow:
+      type: object
+      required: [carrierCnpj, caseCount, chargedTotal, divergentCount, divergenceTotal, savings]
+      properties:
+        carrierId:
+          type: string
+          format: uuid
+        carrierCnpj:
+          type: string
+        carrierName:
+          type: string
+        caseCount:
+          type: integer
+          format: int64
+        chargedTotal:
+          type: number
+        divergentCount:
+          type: integer
+          format: int64
+        divergenceTotal:
+          type: number
+        divergenceRate:
+          type: number
+          nullable: true
+          description: Percentual de casos DIVERGENT entre os classificados; nulo sem casos classificados.
+        savings:
+          type: number
+    CarrierRanking:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CarrierRankingRow"

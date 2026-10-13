@@ -1,0 +1,121 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit common schemas
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    Money:
+      type: number
+      description: Valor monetário em BRL, com no máximo 2 casas decimais. Sem `format` para que o gerador use BigDecimal.
+      example: 1234.56
+    Cnpj:
+      type: string
+      description: CNPJ completo (14 caracteres, numérico ou alfanumérico), sem máscara.
+      pattern: '^[0-9A-Z]{12}[0-9]{2}$'
+      minLength: 14
+      maxLength: 14
+      example: "11222333000181"
+    AccessKey:
+      type: string
+      description: Chave de acesso de documento fiscal (44 dígitos).
+      pattern: '^[0-9]{44}$'
+      minLength: 44
+      maxLength: 44
+    Cep:
+      type: string
+      description: CEP com 8 dígitos, sem máscara.
+      pattern: '^[0-9]{8}$'
+      minLength: 8
+      maxLength: 8
+      example: "01310100"
+    PageMeta:
+      type: object
+      required: [page, size, totalElements, totalPages]
+      properties:
+        page:
+          type: integer
+          format: int32
+          minimum: 0
+        size:
+          type: integer
+          format: int32
+          minimum: 1
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          format: int32
+          minimum: 0
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    Problem:
+      type: object
+      description: Erro no formato RFC 9457 (`application/problem+json`) com as extensões `code` e `errors`.
+      required: [title, status, code]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          default: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+          description: Código estável do erro, por exemplo `TENANT_CLAIM_MISSING`.
+        currentStatus:
+          type: string
+          description: Estado atual do caso, nas recusas de transição de estado (409).
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldError"
+    Party:
+      type: object
+      description: Pessoa jurídica ou física envolvida no documento.
+      required: [name]
+      properties:
+        cnpj:
+          $ref: "#/components/schemas/Cnpj"
+        cpf:
+          type: string
+          pattern: '^[0-9]{11}$'
+        name:
+          type: string
+    Place:
+      type: object
+      description: Local de origem ou destino.
+      required: [uf]
+      properties:
+        ibgeCode:
+          type: string
+          pattern: '^[0-9]{7}$'
+          description: Código IBGE do município.
+        city:
+          type: string
+        uf:
+          type: string
+          pattern: '^[A-Z]{2}$'
+        cep:
+          $ref: "#/components/schemas/Cep"
+    CnpjInput:
+      type: string
+      description: CNPJ completo (14 caracteres) ou raiz (8 caracteres), numérico ou alfanumérico, com ou sem máscara. Os dígitos verificadores são validados pelo servidor (422).
+      pattern: '^[0-9A-Za-z./-]{8,18}$'
+      example: "11.222.333/0001-81"

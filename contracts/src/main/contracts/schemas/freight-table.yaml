@@ -1,0 +1,251 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit freight tables
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    # Os campos do conteúdo da tabela não usam `required`, `pattern` nem `minimum`/`maximum` de propósito: a
+    # validação (de estrutura, CEP, faixas, percentuais) é feita por um único validador que acumula todos os erros
+    # com o caminho do campo, em vez de falhar no primeiro erro da validação de bean.
+    FreightTableStatus:
+      type: string
+      enum: [DRAFT, ACTIVE, ARCHIVED]
+    SpecialAreaType:
+      type: string
+      enum: [TDA, TDE]
+    WeightBand:
+      type: object
+      description: Faixa de peso (kg) que cobre pesos maiores que `fromKg` e até `toKg` (inclusive); a primeira inclui o zero.
+      properties:
+        fromKg:
+          type: number
+        toKg:
+          type: number
+        price:
+          type: number
+          description: Valor do frete peso na faixa.
+    FreightRoute:
+      type: object
+      properties:
+        name:
+          type: string
+        destinationCepFrom:
+          type: string
+          description: CEP inicial de destino (8 dígitos).
+        destinationCepTo:
+          type: string
+        originCepFrom:
+          type: string
+          description: CEP inicial de origem (8 dígitos); opcional, junto com `originCepTo`.
+        originCepTo:
+          type: string
+        weightBands:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeightBand"
+        excessPerKg:
+          type: number
+          description: Valor por kg acima do fim da última faixa.
+        adValoremPercent:
+          type: number
+          description: Percentual (0 a 100) sobre o valor da carga.
+        adValoremMinimum:
+          type: number
+        grisPercent:
+          type: number
+          description: Percentual (0 a 100) sobre o valor da carga.
+        grisMinimum:
+          type: number
+        tollPer100Kg:
+          type: number
+          description: Pedágio a cada 100 kg (fração arredondada para cima).
+    SpecialArea:
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/SpecialAreaType"
+        cepFrom:
+          type: string
+        cepTo:
+          type: string
+        percentOverFreightWeight:
+          type: number
+          description: Percentual (0 a 100) sobre o frete peso.
+        minimum:
+          type: number
+    FreightTableContent:
+      type: object
+      description: Formato canônico de uma tabela de frete.
+      properties:
+        name:
+          type: string
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+        includesIcms:
+          type: boolean
+          description: Verdadeiro quando os valores da tabela já incluem ICMS.
+        cubingFactor:
+          type: number
+          description: Fator de cubagem em kg/m³.
+        minimumFreight:
+          type: number
+        dispatchFee:
+          type: number
+        routes:
+          type: array
+          items:
+            $ref: "#/components/schemas/FreightRoute"
+        specialAreas:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpecialArea"
+    CreateFreightTableRequest:
+      type: object
+      required: [carrierId, content]
+      properties:
+        carrierId:
+          type: string
+          format: uuid
+        content:
+          $ref: "#/components/schemas/FreightTableContent"
+    UpdateFreightTableRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          $ref: "#/components/schemas/FreightTableContent"
+    FreightTableSummary:
+      type: object
+      required: [id, carrierId, name, version, status, validFrom, includesIcms, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        carrierId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: integer
+          format: int32
+        status:
+          $ref: "#/components/schemas/FreightTableStatus"
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+        includesIcms:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        activatedAt:
+          type: string
+          format: date-time
+    FreightTable:
+      type: object
+      description: Tabela de frete com o conteúdo canônico (os mesmos campos do resumo mais `content`).
+      required: [id, carrierId, name, version, status, validFrom, includesIcms, createdAt, content]
+      properties:
+        id:
+          type: string
+          format: uuid
+        carrierId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: integer
+          format: int32
+        status:
+          $ref: "#/components/schemas/FreightTableStatus"
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+        includesIcms:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        activatedAt:
+          type: string
+          format: date-time
+        content:
+          $ref: "#/components/schemas/FreightTableContent"
+    ShipmentInput:
+      type: object
+      description: Entradas do cálculo de frete (simulação).
+      properties:
+        destinationCep:
+          type: string
+        originCep:
+          type: string
+        actualWeightKg:
+          type: number
+        cubedWeightKg:
+          type: number
+        volumeM3:
+          type: number
+        cargoValue:
+          type: number
+        icmsRatePercent:
+          type: number
+          description: Alíquota de ICMS em percentual (0 a 100); opcional.
+    CalculatedComponent:
+      type: object
+      required: [code, amount]
+      properties:
+        code:
+          type: string
+          description: FREIGHT_WEIGHT, AD_VALOREM, GRIS, TOLL, TDA, TDE, DISPATCH_FEE, MINIMUM_ADJUSTMENT ou ICMS.
+        amount:
+          type: number
+    CalculationOutcome:
+      type: string
+      enum: [CALCULATED, ROUTE_NOT_COVERED]
+    CalculationResult:
+      type: object
+      required: [outcome, tableId, tableVersion]
+      properties:
+        outcome:
+          $ref: "#/components/schemas/CalculationOutcome"
+        tableId:
+          type: string
+          format: uuid
+        tableVersion:
+          type: integer
+          format: int32
+        routeName:
+          type: string
+        weightBandFromKg:
+          type: number
+        weightBandToKg:
+          type: number
+        actualWeightKg:
+          type: number
+        cubedWeightKg:
+          type: number
+        chargeableWeightKg:
+          type: number
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/CalculatedComponent"
+        subtotal:
+          type: number
+        icmsAdded:
+          type: boolean
+        total:
+          type: number

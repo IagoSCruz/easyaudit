@@ -1,0 +1,162 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit document representation
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    DocumentKind:
+      type: string
+      enum: [CTE, NFE]
+    DocumentStatus:
+      type: string
+      description: Estado do processamento assíncrono.
+      enum: [RECEIVED, PROCESSED, FAILED]
+    DocumentLifecycle:
+      type: string
+      description: Situação do documento depois de processado (cancelamento e substituição).
+      enum: [ACTIVE, CANCELLED, SUBSTITUTED]
+    RejectionReason:
+      type: string
+      enum:
+        - UNSUPPORTED_DOCUMENT
+        - MALFORMED_XML
+        - FILE_TOO_LARGE
+        - NOT_AUTHORIZED
+        - INVALID_SIGNATURE
+        - HOMOLOGATION_DOCUMENT
+        - NOT_TENANT_DOCUMENT
+    IngestionStatus:
+      type: string
+      enum: [ACCEPTED, DUPLICATE, REJECTED]
+    IngestionItemResult:
+      type: object
+      required: [filename, status]
+      properties:
+        filename:
+          type: string
+          description: Nome do arquivo (ou da entrada do ZIP, ou o índice no envelope do webhook).
+        status:
+          $ref: "#/components/schemas/IngestionStatus"
+        documentId:
+          type: string
+          format: uuid
+          description: Presente em ACCEPTED e em DUPLICATE (id do documento existente).
+        reason:
+          $ref: "#/components/schemas/RejectionReason"
+        detail:
+          type: string
+    IngestionResult:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IngestionItemResult"
+    WebhookDocument:
+      type: object
+      required: [contentBase64]
+      properties:
+        name:
+          type: string
+        contentBase64:
+          type: string
+          format: byte
+          description: XML do documento (ou ZIP com XMLs) codificado em base64.
+    WebhookDocumentsRequest:
+      type: object
+      required: [documents]
+      properties:
+        documents:
+          type: array
+          minItems: 1
+          description: Até 100 documentos por envelope; acima disso o servidor responde 413.
+          items:
+            $ref: "#/components/schemas/WebhookDocument"
+    DocumentSummary:
+      type: object
+      required: [id, kind, status, lifecycle, accessKey, receivedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/DocumentKind"
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+        lifecycle:
+          $ref: "#/components/schemas/DocumentLifecycle"
+        accessKey:
+          $ref: "common.yaml#/components/schemas/AccessKey"
+        receivedAt:
+          type: string
+          format: date-time
+        processedAt:
+          type: string
+          format: date-time
+        failureReason:
+          type: string
+    DocumentPage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentSummary"
+        page:
+          $ref: "common.yaml#/components/schemas/PageMeta"
+    DocumentLinkType:
+      type: string
+      description: |
+        `CTE_NFE`: o CT-e referencia a NF-e. `COMPLEMENTS` e `SUBSTITUTES`: este CT-e complementa/substitui o da chave
+        indicada. `COMPLEMENTED_BY` e `SUBSTITUTED_BY`: visão inversa, com a chave do CT-e complementar/substituto.
+      enum: [CTE_NFE, COMPLEMENTS, SUBSTITUTES, COMPLEMENTED_BY, SUBSTITUTED_BY]
+    DocumentLink:
+      type: object
+      required: [type, targetKey, resolved]
+      properties:
+        type:
+          $ref: "#/components/schemas/DocumentLinkType"
+        targetKey:
+          $ref: "common.yaml#/components/schemas/AccessKey"
+        resolved:
+          type: boolean
+        targetDocumentId:
+          type: string
+          format: uuid
+    DocumentResponse:
+      type: object
+      required: [id, kind, status, lifecycle, accessKey, receivedAt, rawSha256, links]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/DocumentKind"
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+        lifecycle:
+          $ref: "#/components/schemas/DocumentLifecycle"
+        accessKey:
+          $ref: "common.yaml#/components/schemas/AccessKey"
+        receivedAt:
+          type: string
+          format: date-time
+        processedAt:
+          type: string
+          format: date-time
+        rawSha256:
+          type: string
+          description: SHA-256 (hexadecimal) do XML original registrado na ingestão.
+        failureReason:
+          type: string
+        cte:
+          $ref: "cte.yaml#/components/schemas/CanonicalCte"
+        nfe:
+          $ref: "nfe.yaml#/components/schemas/CanonicalNfe"
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentLink"

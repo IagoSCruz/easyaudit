@@ -1,0 +1,234 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit events
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    Classification:
+      type: string
+      enum:
+      - COMPLIANT
+      - DIVERGENT
+      - NOT_AUDITABLE
+    CaseStatus:
+      type: string
+      enum:
+      - PENDING_AUDIT
+      - COMPLIANT
+      - DIVERGENT
+      - NOT_AUDITABLE
+      - DISPUTED
+      - APPROVED
+      - SCHEDULED_FOR_PAYMENT
+      - PAID
+      - CANCELLED
+    EventType:
+      type: string
+      enum:
+      - document.received
+      - document.normalized
+      - document.link-resolved
+      - document.cancelled
+      - quote.linked
+      - quote.revised
+      - freight-table.activated
+      - audit.completed
+      - audit.status-changed
+    EventEnvelope:
+      type: object
+      description: Envelope comum. O campo `data` carrega o payload do tipo indicado
+        em `eventType`.
+      required:
+      - eventId
+      - eventType
+      - schemaVersion
+      - occurredAt
+      - tenantId
+      - data
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          $ref: '#/components/schemas/EventType'
+        schemaVersion:
+          type: integer
+          format: int32
+          example: 1
+        occurredAt:
+          type: string
+          format: date-time
+        tenantId:
+          type: string
+          format: uuid
+        data:
+          type: object
+          additionalProperties: true
+    DocumentReceivedData:
+      type: object
+      required:
+      - documentId
+      - kind
+      - accessKey
+      properties:
+        documentId:
+          type: string
+          format: uuid
+          description: Id do documento, ou do evento de cancelamento quando `cancellation` é verdadeiro.
+        kind:
+          $ref: document.yaml#/components/schemas/DocumentKind
+        accessKey:
+          $ref: common.yaml#/components/schemas/AccessKey
+        cancellation:
+          type: boolean
+          description: Verdadeiro quando o evento é um cancelamento do documento indicado por `kind` e `accessKey`.
+    DocumentNormalizedData:
+      type: object
+      required:
+      - documentId
+      - kind
+      - accessKey
+      properties:
+        documentId:
+          type: string
+          format: uuid
+        kind:
+          $ref: document.yaml#/components/schemas/DocumentKind
+        accessKey:
+          $ref: common.yaml#/components/schemas/AccessKey
+        cte:
+          $ref: cte.yaml#/components/schemas/CanonicalCte
+        nfe:
+          $ref: nfe.yaml#/components/schemas/CanonicalNfe
+    DocumentLinkResolvedData:
+      type: object
+      required:
+      - documentId
+      - linkType
+      - targetKey
+      - targetDocumentId
+      properties:
+        documentId:
+          type: string
+          format: uuid
+        linkType:
+          $ref: document.yaml#/components/schemas/DocumentLinkType
+        targetKey:
+          $ref: common.yaml#/components/schemas/AccessKey
+        targetDocumentId:
+          type: string
+          format: uuid
+    DocumentCancelledData:
+      type: object
+      required:
+      - documentId
+      - kind
+      - accessKey
+      properties:
+        documentId:
+          type: string
+          format: uuid
+        kind:
+          $ref: document.yaml#/components/schemas/DocumentKind
+        accessKey:
+          $ref: common.yaml#/components/schemas/AccessKey
+        reason:
+          type: string
+          enum: [CANCELLED, SUBSTITUTED]
+          description: Cancelamento fiscal ou substituição por outro CT-e. Ausente equivale a CANCELLED.
+    QuoteLinkedData:
+      type: object
+      required:
+      - quoteId
+      - documentId
+      properties:
+        quoteId:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        amount:
+          $ref: common.yaml#/components/schemas/Money
+    QuoteRevisedData:
+      type: object
+      required:
+      - quoteId
+      - revision
+      properties:
+        quoteId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          format: int32
+        amount:
+          $ref: common.yaml#/components/schemas/Money
+    FreightTableActivatedData:
+      type: object
+      required:
+      - carrierId
+      - tableVersionId
+      - validFrom
+      properties:
+        carrierId:
+          type: string
+          format: uuid
+        tableVersionId:
+          type: string
+          format: uuid
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+    AuditCompletedData:
+      type: object
+      required:
+      - caseId
+      - revisionId
+      - classification
+      - chargedAmount
+      - failedChecks
+      properties:
+        caseId:
+          type: string
+          format: uuid
+        revisionId:
+          type: string
+          format: uuid
+        classification:
+          $ref: '#/components/schemas/Classification'
+        chargedAmount:
+          $ref: common.yaml#/components/schemas/Money
+        referenceAmount:
+          $ref: common.yaml#/components/schemas/Money
+        failedChecks:
+          type: array
+          items:
+            type: string
+    AuditStatusChangedData:
+      type: object
+      required:
+      - caseId
+      - fromStatus
+      - toStatus
+      - actor
+      - changedAt
+      properties:
+        caseId:
+          type: string
+          format: uuid
+        fromStatus:
+          $ref: '#/components/schemas/CaseStatus'
+        toStatus:
+          $ref: '#/components/schemas/CaseStatus'
+        actor:
+          type: string
+        changedAt:
+          type: string
+          format: date-time
+        approvedAmount:
+          $ref: common.yaml#/components/schemas/Money

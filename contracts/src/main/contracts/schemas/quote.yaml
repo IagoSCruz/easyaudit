@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit quotes
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    # Sem `pattern`/`minimum` de propósito: a validação (CNPJ, CEP, chave de NF-e, valores) é feita pelo serviço, que
+    # devolve todos os erros juntos com o nome do campo.
+    QuoteSource:
+      type: string
+      enum: [VTEX, INTELIPOST, FRETE_RAPIDO, OTHER]
+    QuoteLinkStatus:
+      type: string
+      enum: [UNLINKED, LINKED, AMBIGUOUS_ORDER_REFERENCE]
+    QuoteRequest:
+      type: object
+      required: [source, externalId, carrierCnpj, amount, quotedAt, destinationCep]
+      properties:
+        source:
+          $ref: "#/components/schemas/QuoteSource"
+        externalId:
+          type: string
+          description: Id da cotação na origem; junto com o tenant e a origem identifica a cotação.
+        carrierCnpj:
+          type: string
+          description: CNPJ da transportadora cotada (14 caracteres, numérico ou alfanumérico, com ou sem máscara).
+        service:
+          type: string
+          description: Serviço cotado (por exemplo, "Rodoviário").
+        amount:
+          type: number
+          description: Valor cotado do frete.
+        quotedAt:
+          type: string
+          format: date-time
+        destinationCep:
+          type: string
+          description: CEP de destino (8 dígitos).
+        weightKg:
+          type: number
+        cargoValue:
+          type: number
+        deliveryDays:
+          type: integer
+          format: int32
+          description: Prazo de entrega em dias.
+        nfeKey:
+          type: string
+          description: Chave de acesso da NF-e (44 dígitos). Informe a chave, a referência de pedido, ou as duas.
+        orderReference:
+          type: string
+          description: Referência de pedido, igual ao `xPed` da NF-e.
+    QuoteResult:
+      type: string
+      enum: [CREATED, UNCHANGED, REVISED]
+    QuoteReceipt:
+      type: object
+      required: [id, result, revision]
+      properties:
+        id:
+          type: string
+          format: uuid
+        result:
+          $ref: "#/components/schemas/QuoteResult"
+        revision:
+          type: integer
+          format: int32
+          description: Revisão vigente depois do registro.
+    QuoteRevision:
+      type: object
+      required: [revision, carrierCnpj, amount, quotedAt, destinationCep, receivedAt]
+      properties:
+        revision:
+          type: integer
+          format: int32
+        carrierCnpj:
+          type: string
+        service:
+          type: string
+        amount:
+          type: number
+        quotedAt:
+          type: string
+          format: date-time
+        destinationCep:
+          type: string
+        weightKg:
+          type: number
+        cargoValue:
+          type: number
+        deliveryDays:
+          type: integer
+          format: int32
+        nfeKey:
+          type: string
+        orderReference:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+    QuoteSummary:
+      type: object
+      required: [id, source, externalId, linkStatus, currentRevision, carrierCnpj, amount, quotedAt, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        source:
+          $ref: "#/components/schemas/QuoteSource"
+        externalId:
+          type: string
+        linkStatus:
+          $ref: "#/components/schemas/QuoteLinkStatus"
+        currentRevision:
+          type: integer
+          format: int32
+        carrierCnpj:
+          type: string
+        service:
+          type: string
+        amount:
+          type: number
+        quotedAt:
+          type: string
+          format: date-time
+        nfeKey:
+          type: string
+        orderReference:
+          type: string
+        linkedNfeDocumentId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    QuoteDetail:
+      type: object
+      required: [id, source, externalId, linkStatus, currentRevision, carrierCnpj, amount, quotedAt, createdAt, revisions]
+      properties:
+        id:
+          type: string
+          format: uuid
+        source:
+          $ref: "#/components/schemas/QuoteSource"
+        externalId:
+          type: string
+        linkStatus:
+          $ref: "#/components/schemas/QuoteLinkStatus"
+        currentRevision:
+          type: integer
+          format: int32
+        carrierCnpj:
+          type: string
+        service:
+          type: string
+        amount:
+          type: number
+        quotedAt:
+          type: string
+          format: date-time
+        nfeKey:
+          type: string
+        orderReference:
+          type: string
+        linkedNfeDocumentId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        revisions:
+          type: array
+          description: Todas as revisões, da mais antiga para a mais nova.
+          items:
+            $ref: "#/components/schemas/QuoteRevision"
+    QuotePage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuoteSummary"
+        page:
+          $ref: "common.yaml#/components/schemas/PageMeta"

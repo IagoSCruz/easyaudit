@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: easyaudit
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    # a aplicação conecta com a role sem BYPASSRLS e que não é dona das tabelas
+    url: ${EASYAUDIT_DB_URL:jdbc:postgresql://localhost:5432/easyaudit}
+    username: ${EASYAUDIT_DB_APP_USER:easyaudit_app}
+    password: ${EASYAUDIT_DB_APP_PASSWORD:easyaudit_app}
+  flyway:
+    # as migrações rodam com a role dona
+    url: ${EASYAUDIT_DB_URL:jdbc:postgresql://localhost:5432/easyaudit}
+    user: ${EASYAUDIT_DB_OWNER_USER:easyaudit_owner}
+    password: ${EASYAUDIT_DB_OWNER_PASSWORD:easyaudit_owner}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  rabbitmq:
+    host: ${EASYAUDIT_RABBIT_HOST:localhost}
+    port: ${EASYAUDIT_RABBIT_PORT:5672}
+    username: ${EASYAUDIT_RABBIT_USER:easyaudit}
+    password: ${EASYAUDIT_RABBIT_PASSWORD:easyaudit}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${EASYAUDIT_OIDC_ISSUER:http://localhost:8081/realms/easyaudit}
+
+logging:
+  structured:
+    format:
+      console: ecs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  # Para exportar traces: management.tracing.export.otlp.enabled=true e
+  # management.opentelemetry.tracing.export.otlp.endpoint=http://collector:4318/v1/traces
+  tracing:
+    sampling:
+      probability: ${EASYAUDIT_TRACING_SAMPLING:0.1}
+
+easyaudit:
+  credentials:
+    # chave mestra AES-256 (Base64, 32 bytes): openssl rand -base64 32
+    active-version: 1
+    keys:
+      1: ${EASYAUDIT_CREDENTIALS_KEY}
+  messaging:
+    listeners:
+      enabled: ${EASYAUDIT_LISTENERS_ENABLED:true}

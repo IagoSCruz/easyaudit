@@ -1,0 +1,72 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit canonical NF-e
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    FreightMode:
+      type: string
+      enum: [CIF, FOB, THIRD_PARTY, OWN_SENDER, OWN_RECIPIENT, NONE]
+      description: Modalidade do frete (`modFrete` 0 a 4 e 9).
+    NfeRecipient:
+      type: object
+      required: [party, place]
+      properties:
+        party:
+          $ref: "common.yaml#/components/schemas/Party"
+        place:
+          $ref: "common.yaml#/components/schemas/Place"
+    Volume:
+      type: object
+      properties:
+        quantity:
+          type: integer
+          format: int32
+        netWeightKg:
+          type: number
+        grossWeightKg:
+          type: number
+    CanonicalNfe:
+      type: object
+      required: [schemaVersion, accessKey, number, series, issuedAt, issuer, recipient, totalAmount, volumes]
+      properties:
+        schemaVersion:
+          type: integer
+          format: int32
+          example: 1
+        accessKey:
+          $ref: "common.yaml#/components/schemas/AccessKey"
+        number:
+          type: string
+        series:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+        issuer:
+          $ref: "common.yaml#/components/schemas/Party"
+        recipient:
+          $ref: "#/components/schemas/NfeRecipient"
+        totalAmount:
+          $ref: "common.yaml#/components/schemas/Money"
+        productsAmount:
+          $ref: "common.yaml#/components/schemas/Money"
+        freightAmount:
+          $ref: "common.yaml#/components/schemas/Money"
+        freightMode:
+          $ref: "#/components/schemas/FreightMode"
+        carrierCnpj:
+          $ref: "common.yaml#/components/schemas/Cnpj"
+        volumes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Volume"
+        totalGrossWeightKg:
+          type: number
+        totalNetWeightKg:
+          type: number
+        orderReferences:
+          type: array
+          items:
+            type: string

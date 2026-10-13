@@ -1,0 +1,1740 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit API
+  version: 0.1.0
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+tags:
+  - name: Ping
+  - name: Documents
+  - name: DocumentWebhooks
+  - name: QuoteWebhooks
+  - name: Carriers
+  - name: ComponentAliases
+  - name: FreightTables
+  - name: Quotes
+  - name: AuditPolicies
+  - name: AuditReaudit
+  - name: AuditActions
+  - name: AuditQueries
+  - name: AuditExport
+  - name: AuditDashboard
+  - name: PaymentBatches
+  - name: Tenants
+  - name: TenantCnpjs
+  - name: IntegrationCredentials
+paths:
+  /api/v1/ping:
+    get:
+      tags: [Ping]
+      operationId: ping
+      summary: Endpoint de exemplo (substituído pelos endpoints reais)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PingResponse"
+        "422":
+          description: Erro de validação
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../schemas/common.yaml#/components/schemas/Problem"
+  /api/v1/documents:
+    post:
+      tags: [Documents]
+      operationId: uploadDocuments
+      summary: Envia XMLs (ou ZIPs com XMLs) de CT-e, NF-e e eventos de cancelamento (exceto VIEWER)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "200":
+          description: Resultado por arquivo
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/document.yaml#/components/schemas/IngestionResult"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+    get:
+      tags: [Documents]
+      operationId: listDocuments
+      summary: Lista os documentos do tenant
+      parameters:
+        - name: kind
+          in: query
+          schema:
+            $ref: "../schemas/document.yaml#/components/schemas/DocumentKind"
+        - name: status
+          in: query
+          schema:
+            $ref: "../schemas/document.yaml#/components/schemas/DocumentStatus"
+        - name: accessKey
+          in: query
+          schema:
+            $ref: "../schemas/common.yaml#/components/schemas/AccessKey"
+        - name: receivedFrom
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: receivedTo
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/document.yaml#/components/schemas/DocumentPage"
+  /api/v1/documents/{id}:
+    get:
+      tags: [Documents]
+      operationId: getDocument
+      summary: Detalhe do documento, com a representação canônica e os vínculos
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/document.yaml#/components/schemas/DocumentResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/documents/{id}/xml:
+    get:
+      tags: [Documents]
+      operationId: downloadDocumentXml
+      summary: Baixa o XML original, byte a byte como foi recebido
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: XML original
+          content:
+            application/xml:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /webhooks/v1/documents:
+    post:
+      tags: [DocumentWebhooks]
+      operationId: receiveDocumentsWebhook
+      summary: Recebe até 100 XMLs em base64, autenticado por assinatura HMAC
+      security:
+        - hmacKeyId: []
+          hmacTimestamp: []
+          hmacSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/document.yaml#/components/schemas/WebhookDocumentsRequest"
+      responses:
+        "200":
+          description: Resultado por documento
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/document.yaml#/components/schemas/IngestionResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+  /admin/v1/tenants:
+    post:
+      tags: [Tenants]
+      operationId: createTenant
+      summary: Cria um tenant (PLATFORM_ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTenantRequest"
+      responses:
+        "201":
+          description: Tenant criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [Tenants]
+      operationId: listTenants
+      summary: Lista os tenants (PLATFORM_ADMIN)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TenantResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/v1/tenants/{id}:
+    get:
+      tags: [Tenants]
+      operationId: getTenant
+      summary: Consulta um tenant (PLATFORM_ADMIN)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/tenant/cnpjs:
+    get:
+      tags: [TenantCnpjs]
+      operationId: listTenantCnpjs
+      summary: Lista os CNPJs do tenant
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TenantCnpjResponse"
+    post:
+      tags: [TenantCnpjs]
+      operationId: addTenantCnpj
+      summary: Inclui um CNPJ ou raiz no tenant (TENANT_ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTenantCnpjRequest"
+      responses:
+        "201":
+          description: CNPJ registrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantCnpjResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/tenant/cnpjs/{cnpj}:
+    delete:
+      tags: [TenantCnpjs]
+      operationId: removeTenantCnpj
+      summary: Remove um CNPJ ou raiz do tenant (TENANT_ADMIN)
+      parameters:
+        - name: cnpj
+          in: path
+          required: true
+          schema:
+            $ref: "../schemas/common.yaml#/components/schemas/CnpjInput"
+      responses:
+        "204":
+          description: Removido
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/tenant/integration-credentials:
+    get:
+      tags: [IntegrationCredentials]
+      operationId: listIntegrationCredentials
+      summary: Lista as credenciais de integração (nunca retorna o segredo)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntegrationCredentialResponse"
+    post:
+      tags: [IntegrationCredentials]
+      operationId: createIntegrationCredential
+      summary: Cria uma credencial; o segredo é exibido uma única vez (TENANT_ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIntegrationCredentialRequest"
+      responses:
+        "201":
+          description: Credencial criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedIntegrationCredentialResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/tenant/integration-credentials/{keyId}/revoke:
+    post:
+      tags: [IntegrationCredentials]
+      operationId: revokeIntegrationCredential
+      summary: Revoga uma credencial (TENANT_ADMIN)
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Credencial revogada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationCredentialResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/carriers:
+    get:
+      tags: [Carriers]
+      operationId: listCarriers
+      summary: Lista as transportadoras do tenant
+      parameters:
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "../schemas/carrier.yaml#/components/schemas/Carrier"
+    post:
+      tags: [Carriers]
+      operationId: createCarrier
+      summary: Cadastra uma transportadora (TENANT_ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/carrier.yaml#/components/schemas/CreateCarrierRequest"
+      responses:
+        "201":
+          description: Transportadora cadastrada
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/carrier.yaml#/components/schemas/Carrier"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/carriers/{id}:
+    get:
+      tags: [Carriers]
+      operationId: getCarrier
+      summary: Consulta uma transportadora
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/carrier.yaml#/components/schemas/Carrier"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Carriers]
+      operationId: updateCarrier
+      summary: Edita o nome ou ativa/inativa uma transportadora (TENANT_ADMIN)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/carrier.yaml#/components/schemas/UpdateCarrierRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/carrier.yaml#/components/schemas/Carrier"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/carriers/{id}/component-aliases:
+    get:
+      tags: [ComponentAliases]
+      operationId: listComponentAliases
+      summary: Lista os sinônimos de componente da transportadora
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "../schemas/carrier.yaml#/components/schemas/ComponentAlias"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [ComponentAliases]
+      operationId: createComponentAlias
+      summary: Cadastra um sinônimo de componente (TENANT_ADMIN)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/carrier.yaml#/components/schemas/CreateComponentAliasRequest"
+      responses:
+        "201":
+          description: Sinônimo cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/carrier.yaml#/components/schemas/ComponentAlias"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/carriers/{id}/component-aliases/{aliasId}:
+    delete:
+      tags: [ComponentAliases]
+      operationId: deleteComponentAlias
+      summary: Remove um sinônimo de componente (TENANT_ADMIN)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+        - name: aliasId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Removido
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/freight-tables:
+    post:
+      tags: [FreightTables]
+      operationId: createFreightTable
+      summary: Cria uma tabela de frete (rascunho) a partir do JSON canônico (TENANT_ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/freight-table.yaml#/components/schemas/CreateFreightTableRequest"
+      responses:
+        "201":
+          description: Tabela criada em DRAFT
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/freight-table.yaml#/components/schemas/FreightTable"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [FreightTables]
+      operationId: listFreightTables
+      summary: Lista as tabelas de frete do tenant
+      parameters:
+        - name: carrierId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: "../schemas/freight-table.yaml#/components/schemas/FreightTableStatus"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "../schemas/freight-table.yaml#/components/schemas/FreightTableSummary"
+  /api/v1/freight-tables/import:
+    post:
+      tags: [FreightTables]
+      operationId: importFreightTable
+      summary: Importa uma planilha XLSX no formato do modelo, criando um rascunho (TENANT_ADMIN)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [carrierId, file]
+              properties:
+                carrierId:
+                  type: string
+                  format: uuid
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Tabela criada em DRAFT
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/freight-table.yaml#/components/schemas/FreightTable"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/freight-tables/template:
+    get:
+      tags: [FreightTables]
+      operationId: downloadFreightTableTemplate
+      summary: Baixa a planilha modelo (XLSX)
+      responses:
+        "200":
+          description: Planilha modelo
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+  /api/v1/freight-tables/{id}:
+    get:
+      tags: [FreightTables]
+      operationId: getFreightTable
+      summary: Detalhe da tabela, com o conteúdo
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/freight-table.yaml#/components/schemas/FreightTable"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [FreightTables]
+      operationId: updateFreightTable
+      summary: Substitui o conteúdo de uma tabela em DRAFT (TENANT_ADMIN)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/freight-table.yaml#/components/schemas/UpdateFreightTableRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/freight-table.yaml#/components/schemas/FreightTable"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/freight-tables/{id}/archive:
+    post:
+      tags: [FreightTables]
+      operationId: archiveFreightTable
+      summary: Arquiva uma tabela em DRAFT (TENANT_ADMIN)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/freight-table.yaml#/components/schemas/FreightTable"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/freight-tables/{id}/new-version:
+    post:
+      tags: [FreightTables]
+      operationId: newFreightTableVersion
+      summary: Cria um rascunho com o mesmo conteúdo e a versão incrementada (TENANT_ADMIN)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "201":
+          description: Nova versão em DRAFT
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/freight-table.yaml#/components/schemas/FreightTable"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/freight-tables/{id}/activate:
+    post:
+      tags: [FreightTables]
+      operationId: activateFreightTable
+      summary: Ativa uma tabela em DRAFT (TENANT_ADMIN)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/freight-table.yaml#/components/schemas/FreightTable"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/freight-tables/{id}/simulations:
+    post:
+      tags: [FreightTables]
+      operationId: simulateFreightTable
+      summary: Simula o cálculo de um embarque em uma tabela DRAFT ou ACTIVE, sem gravar nada
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/freight-table.yaml#/components/schemas/ShipmentInput"
+      responses:
+        "200":
+          description: Resultado detalhado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/freight-table.yaml#/components/schemas/CalculationResult"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/quotes:
+    post:
+      tags: [Quotes]
+      operationId: registerQuote
+      summary: Registra uma cotação de frete (TENANT_ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/quote.yaml#/components/schemas/QuoteRequest"
+      responses:
+        "200":
+          description: Cotação já existente (reenvio idêntico ou nova revisão)
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/quote.yaml#/components/schemas/QuoteReceipt"
+        "201":
+          description: Cotação criada
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/quote.yaml#/components/schemas/QuoteReceipt"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [Quotes]
+      operationId: listQuotes
+      summary: Lista as cotações do tenant
+      parameters:
+        - name: source
+          in: query
+          schema:
+            $ref: "../schemas/quote.yaml#/components/schemas/QuoteSource"
+        - name: carrierCnpj
+          in: query
+          schema:
+            type: string
+        - name: linkStatus
+          in: query
+          schema:
+            $ref: "../schemas/quote.yaml#/components/schemas/QuoteLinkStatus"
+        - name: orderReference
+          in: query
+          schema:
+            type: string
+        - name: nfeKey
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/quote.yaml#/components/schemas/QuotePage"
+  /api/v1/quotes/{id}:
+    get:
+      tags: [Quotes]
+      operationId: getQuote
+      summary: Detalhe da cotação, com as revisões
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/quote.yaml#/components/schemas/QuoteDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /webhooks/v1/quotes:
+    post:
+      tags: [QuoteWebhooks]
+      operationId: receiveQuoteWebhook
+      summary: Recebe uma cotação, autenticada por assinatura HMAC
+      security:
+        - hmacKeyId: []
+          hmacTimestamp: []
+          hmacSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/quote.yaml#/components/schemas/QuoteRequest"
+      responses:
+        "200":
+          description: Cotação já existente (reenvio idêntico ou nova revisão)
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/quote.yaml#/components/schemas/QuoteReceipt"
+        "201":
+          description: Cotação criada
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/quote.yaml#/components/schemas/QuoteReceipt"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/audit-policies/default:
+    get:
+      tags: [AuditPolicies]
+      operationId: getDefaultAuditPolicy
+      summary: Política de auditoria padrão do tenant
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/AuditPolicy"
+    put:
+      tags: [AuditPolicies]
+      operationId: updateDefaultAuditPolicy
+      summary: Altera a política padrão do tenant (TENANT_ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/audit.yaml#/components/schemas/AuditPolicy"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/AuditPolicy"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/carriers/{id}/audit-policy:
+    get:
+      tags: [AuditPolicies]
+      operationId: getCarrierAuditPolicy
+      summary: Política da transportadora (sobrescritas e política efetiva)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/CarrierAuditPolicy"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [AuditPolicies]
+      operationId: updateCarrierAuditPolicy
+      summary: Define as sobrescritas da transportadora; só os campos informados substituem a política do tenant (TENANT_ADMIN)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/audit.yaml#/components/schemas/AuditPolicyOverrides"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/CarrierAuditPolicy"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [AuditPolicies]
+      operationId: deleteCarrierAuditPolicy
+      summary: Remove as sobrescritas da transportadora (volta à política do tenant) (TENANT_ADMIN)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "204":
+          description: Removida
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/audits/{id}/reaudit:
+    post:
+      tags: [AuditReaudit]
+      operationId: reauditCase
+      summary: Pede a reauditoria manual de um caso em PENDING_AUDIT, COMPLIANT, DIVERGENT ou NOT_AUDITABLE (AUDITOR)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Caso reauditado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/AuditCaseSummary"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/audits/{id}/approve:
+    post:
+      tags: [AuditActions]
+      operationId: approveCase
+      summary: Aprova um caso COMPLIANT, DIVERGENT ou NOT_AUDITABLE (AUDITOR)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/audit.yaml#/components/schemas/ApproveCaseRequest"
+      responses:
+        "200":
+          description: Caso atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/AuditCaseSummary"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/audits/approve-batch:
+    post:
+      tags: [AuditActions]
+      operationId: approveCasesBatch
+      summary: Aprova até 500 casos pelo valor cobrado, com o resultado de cada um (AUDITOR)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/audit.yaml#/components/schemas/BatchApproveRequest"
+      responses:
+        "200":
+          description: Resultado por caso
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/BatchApproveResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/audits/{id}/dispute:
+    post:
+      tags: [AuditActions]
+      operationId: disputeCase
+      summary: Contesta um caso COMPLIANT, DIVERGENT ou NOT_AUDITABLE (AUDITOR)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/audit.yaml#/components/schemas/DisputeCaseRequest"
+      responses:
+        "200":
+          description: Caso atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/AuditCaseSummary"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/audits/{id}/resolve:
+    post:
+      tags: [AuditActions]
+      operationId: resolveDispute
+      summary: Resolve a contestação com o valor acordado (AUDITOR)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/audit.yaml#/components/schemas/ResolveDisputeRequest"
+      responses:
+        "200":
+          description: Caso atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/AuditCaseSummary"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/audits/{id}/withdraw:
+    post:
+      tags: [AuditActions]
+      operationId: withdrawDispute
+      summary: Desiste da contestação; o caso volta à última classificação (AUDITOR)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/audit.yaml#/components/schemas/WithdrawDisputeRequest"
+      responses:
+        "200":
+          description: Caso atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/AuditCaseSummary"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/audits/{id}/reopen:
+    post:
+      tags: [AuditActions]
+      operationId: reopenCase
+      summary: Reabre um caso APPROVED que não está em lote de pagamento (AUDITOR)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/audit.yaml#/components/schemas/ReopenCaseRequest"
+      responses:
+        "200":
+          description: Caso atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/AuditCaseSummary"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/payment-batches:
+    post:
+      tags: [PaymentBatches]
+      operationId: createPaymentBatch
+      summary: Cria um lote de pagamento com casos APPROVED de uma transportadora (FINANCE)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/settlement.yaml#/components/schemas/CreatePaymentBatchRequest"
+      responses:
+        "201":
+          description: Lote criado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/settlement.yaml#/components/schemas/PaymentBatchDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [PaymentBatches]
+      operationId: listPaymentBatches
+      summary: Lista os lotes do tenant
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "../schemas/settlement.yaml#/components/schemas/BatchStatus"
+        - name: carrierRoot
+          in: query
+          schema:
+            type: string
+        - name: dueFrom
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: dueTo
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/settlement.yaml#/components/schemas/PaymentBatchPage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/payment-batches/{id}:
+    get:
+      tags: [PaymentBatches]
+      operationId: getPaymentBatch
+      summary: Detalhe do lote, com casos, exportações e dados da baixa
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/settlement.yaml#/components/schemas/PaymentBatchDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/payment-batches/{id}/cases:
+    post:
+      tags: [PaymentBatches]
+      operationId: addCasesToPaymentBatch
+      summary: Inclui casos APPROVED da mesma transportadora em um lote OPEN (FINANCE)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/settlement.yaml#/components/schemas/BatchCasesRequest"
+      responses:
+        "200":
+          description: Lote atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/settlement.yaml#/components/schemas/PaymentBatchDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/payment-batches/{id}/cases/{caseId}:
+    delete:
+      tags: [PaymentBatches]
+      operationId: removeCaseFromPaymentBatch
+      summary: Retira um caso de um lote OPEN; o caso volta para APPROVED (FINANCE)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Lote atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/settlement.yaml#/components/schemas/PaymentBatchDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/payment-batches/{id}/export:
+    get:
+      tags: [PaymentBatches]
+      operationId: exportPaymentBatch
+      summary: Exporta o lote em CSV (UTF-8 com BOM, separador ";") e registra a exportação (FINANCE)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: CSV do lote
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/payment-batches/{id}/payment:
+    post:
+      tags: [PaymentBatches]
+      operationId: registerPaymentBatchPayment
+      summary: Registra a baixa manual do lote OPEN; lote e casos vão para PAID (FINANCE)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/settlement.yaml#/components/schemas/RegisterPaymentRequest"
+      responses:
+        "200":
+          description: Lote pago
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/settlement.yaml#/components/schemas/PaymentBatchDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/payment-batches/{id}/cancel:
+    post:
+      tags: [PaymentBatches]
+      operationId: cancelPaymentBatch
+      summary: Cancela um lote OPEN; os casos voltam para APPROVED (FINANCE)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Lote cancelado
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/settlement.yaml#/components/schemas/PaymentBatchDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/audits:
+    get:
+      tags: [AuditQueries]
+      operationId: listAudits
+      summary: Lista os casos de auditoria do tenant, com filtros, ordenação e paginação
+      parameters:
+        - name: status
+          in: query
+          description: Estados do caso (repita o parâmetro para mais de um).
+          schema:
+            type: array
+            items:
+              $ref: "../schemas/audit.yaml#/components/schemas/CaseStatus"
+        - name: carrierId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          description: Emissão do CT-e a partir desta data (inclusive).
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: Emissão do CT-e até esta data (inclusive).
+          schema:
+            type: string
+            format: date
+        - name: destinationUf
+          in: query
+          schema:
+            type: string
+        - name: failedCheck
+          in: query
+          description: Código de verificação que falhou na revisão vigente.
+          schema:
+            type: string
+        - name: minDivergence
+          in: query
+          schema:
+            type: number
+        - name: alert
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Chave de acesso (44 caracteres) ou número do CT-e.
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [emissionDate, chargedAmount, divergenceAmount]
+            default: emissionDate
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: page
+          in: query
+          schema:
+            type: integer
+            format: int32
+            default: 0
+        - name: size
+          in: query
+          description: Itens por página, de 1 a 100 (acima disso a resposta é 400).
+          schema:
+            type: integer
+            format: int32
+            default: 20
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/AuditCasePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/audits/export:
+    get:
+      tags: [AuditExport]
+      operationId: exportAudits
+      summary: Exporta em CSV os casos que atendem aos filtros da listagem (até 50.000 linhas)
+      parameters:
+        - name: status
+          in: query
+          description: Estados do caso (repita o parâmetro para mais de um).
+          schema:
+            type: array
+            items:
+              $ref: "../schemas/audit.yaml#/components/schemas/CaseStatus"
+        - name: carrierId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          description: Emissão do CT-e a partir desta data (inclusive).
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: Emissão do CT-e até esta data (inclusive).
+          schema:
+            type: string
+            format: date
+        - name: destinationUf
+          in: query
+          schema:
+            type: string
+        - name: failedCheck
+          in: query
+          description: Código de verificação que falhou na revisão vigente.
+          schema:
+            type: string
+        - name: minDivergence
+          in: query
+          schema:
+            type: number
+        - name: alert
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Chave de acesso (44 caracteres) ou número do CT-e.
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [emissionDate, chargedAmount, divergenceAmount]
+            default: emissionDate
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: CSV (UTF-8 com BOM, separador ";")
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/audits/{id}:
+    get:
+      tags: [AuditQueries]
+      operationId: getAudit
+      summary: Detalhe do caso de auditoria
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/AuditCaseDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/dashboard/summary:
+    get:
+      tags: [AuditDashboard]
+      operationId: getDashboardSummary
+      summary: Indicadores consolidados por período de emissão
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: carrierId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/DashboardSummary"
+  /api/v1/dashboard/carriers:
+    get:
+      tags: [AuditDashboard]
+      operationId: getDashboardCarriers
+      summary: Ranking de transportadoras por valor de divergência
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "../schemas/audit.yaml#/components/schemas/CarrierRanking"
+components:
+  schemas:
+    PingResponse:
+      type: object
+      required: [status, balance, owner]
+      properties:
+        status:
+          type: string
+        balance:
+          $ref: "../schemas/common.yaml#/components/schemas/Money"
+        owner:
+          $ref: "../schemas/common.yaml#/components/schemas/Cnpj"
+        page:
+          $ref: "../schemas/common.yaml#/components/schemas/PageMeta"
+    CreateTenantRequest:
+      type: object
+      required: [name, slug, cnpjs]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        slug:
+          type: string
+          pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+          minLength: 2
+          maxLength: 60
+        cnpjs:
+          type: array
+          minItems: 1
+          items:
+            $ref: "../schemas/common.yaml#/components/schemas/CnpjInput"
+    TenantResponse:
+      type: object
+      required: [id, name, slug, cnpjs, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        cnpjs:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+    AddTenantCnpjRequest:
+      type: object
+      required: [cnpj]
+      properties:
+        cnpj:
+          $ref: "../schemas/common.yaml#/components/schemas/CnpjInput"
+    TenantCnpjResponse:
+      type: object
+      required: [cnpj, kind]
+      properties:
+        cnpj:
+          type: string
+          description: CNPJ completo (14) ou raiz (8), normalizado, sem máscara.
+        kind:
+          type: string
+          enum: [FULL, ROOT]
+    CreateIntegrationCredentialRequest:
+      type: object
+      required: [description]
+      properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 200
+    CredentialStatus:
+      type: string
+      enum: [ACTIVE, REVOKED]
+    IntegrationCredentialResponse:
+      type: object
+      required: [keyId, description, createdAt, status]
+      properties:
+        keyId:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/CredentialStatus"
+    CreatedIntegrationCredentialResponse:
+      type: object
+      required: [keyId, secret, description, createdAt, status]
+      properties:
+        keyId:
+          type: string
+        secret:
+          type: string
+          description: Exibido somente nesta resposta; nunca mais retornado.
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/CredentialStatus"
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Unauthorized:
+      description: Credencial ausente ou inválida
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../schemas/common.yaml#/components/schemas/Problem"
+    PayloadTooLarge:
+      description: Corpo acima do limite
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../schemas/common.yaml#/components/schemas/Problem"
+    Forbidden:
+      description: Sem permissão
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../schemas/common.yaml#/components/schemas/Problem"
+    NotFound:
+      description: Recurso inexistente (ou de outro tenant)
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../schemas/common.yaml#/components/schemas/Problem"
+    Conflict:
+      description: Conflito com o estado atual
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../schemas/common.yaml#/components/schemas/Problem"
+    BadRequest:
+      description: Parâmetro inválido
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../schemas/common.yaml#/components/schemas/Problem"
+    ValidationError:
+      description: Erro de validação
+      content:
+        application/problem+json:
+          schema:
+            $ref: "../schemas/common.yaml#/components/schemas/Problem"
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token OIDC; o tenant vem da claim `tenant_id`.
+    hmacKeyId:
+      type: apiKey
+      in: header
+      name: X-EasyAudit-Key-Id
+      description: Identificador público da credencial de integração (webhooks).
+    hmacTimestamp:
+      type: apiKey
+      in: header
+      name: X-EasyAudit-Timestamp
+      description: Epoch em segundos; janela de 5 minutos (webhooks).
+    hmacSignature:
+      type: apiKey
+      in: header
+      name: X-EasyAudit-Signature
+      description: '`sha256=` + HMAC-SHA256 hexadecimal de `"<timestamp>.<corpo bruto>"` com o segredo (webhooks).'

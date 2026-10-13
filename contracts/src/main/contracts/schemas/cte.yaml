@@ -1,0 +1,125 @@
+openapi: 3.0.3
+info:
+  title: EasyAudit canonical CT-e
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    CteType:
+      type: string
+      enum: [NORMAL, COMPLEMENT, SUBSTITUTE]
+    TakerRole:
+      type: string
+      enum: [SENDER, DISPATCHER, RECEIVER, RECIPIENT, OTHER]
+      description: Papel do tomador do serviço no CT-e.
+    ComponentCode:
+      type: string
+      enum: [FREIGHT_WEIGHT, AD_VALOREM, GRIS, TOLL, TDA, TDE, DISPATCH_FEE, ICMS, OTHER]
+    CteTaker:
+      type: object
+      required: [party, role]
+      properties:
+        party:
+          $ref: "common.yaml#/components/schemas/Party"
+        role:
+          $ref: "#/components/schemas/TakerRole"
+    CteComponent:
+      type: object
+      required: [originalName, code, amount]
+      properties:
+        originalName:
+          type: string
+          description: Nome do componente como veio no XML.
+        code:
+          $ref: "#/components/schemas/ComponentCode"
+        amount:
+          $ref: "common.yaml#/components/schemas/Money"
+    CteIcms:
+      type: object
+      properties:
+        cst:
+          type: string
+        baseAmount:
+          $ref: "common.yaml#/components/schemas/Money"
+        rate:
+          type: number
+          description: Alíquota em percentual.
+        amount:
+          $ref: "common.yaml#/components/schemas/Money"
+    CargoQuantity:
+      type: object
+      required: [unitCode, measureType, quantity]
+      properties:
+        unitCode:
+          type: string
+          description: "`cUnid` do CT-e (00 M3, 01 KG, 02 TON, 03 UNIDADE, 04 LITROS, 05 MMBTU)."
+        measureType:
+          type: string
+          description: "`tpMed` como veio no XML."
+        quantity:
+          type: number
+    DerivedMeasures:
+      type: object
+      description: Pesos e volume derivados das quantidades de carga.
+      properties:
+        actualWeightKg:
+          type: number
+        cubedWeightKg:
+          type: number
+        volumeM3:
+          type: number
+    CanonicalCte:
+      type: object
+      required: [schemaVersion, accessKey, number, series, issuedAt, type, carrier, taker, destination, totalAmount, components, referencedNfeKeys]
+      properties:
+        schemaVersion:
+          type: integer
+          format: int32
+          example: 1
+        accessKey:
+          $ref: "common.yaml#/components/schemas/AccessKey"
+        number:
+          type: string
+        series:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+        type:
+          $ref: "#/components/schemas/CteType"
+        carrier:
+          $ref: "common.yaml#/components/schemas/Party"
+        sender:
+          $ref: "common.yaml#/components/schemas/Party"
+        recipient:
+          $ref: "common.yaml#/components/schemas/Party"
+        taker:
+          $ref: "#/components/schemas/CteTaker"
+        origin:
+          $ref: "common.yaml#/components/schemas/Place"
+        destination:
+          $ref: "common.yaml#/components/schemas/Place"
+        totalAmount:
+          $ref: "common.yaml#/components/schemas/Money"
+        receivableAmount:
+          $ref: "common.yaml#/components/schemas/Money"
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/CteComponent"
+        icms:
+          $ref: "#/components/schemas/CteIcms"
+        cargoValue:
+          $ref: "common.yaml#/components/schemas/Money"
+        quantities:
+          type: array
+          items:
+            $ref: "#/components/schemas/CargoQuantity"
+        measures:
+          $ref: "#/components/schemas/DerivedMeasures"
+        referencedNfeKeys:
+          type: array
+          items:
+            $ref: "common.yaml#/components/schemas/AccessKey"
+        relatedCteKey:
+          $ref: "common.yaml#/components/schemas/AccessKey"
