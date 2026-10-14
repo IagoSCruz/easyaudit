@@ -55,3 +55,4 @@ class FixturesSignatureTest {
         assertThat(CteFixture.builder().unsigned().build().text()).doesNotContain("<Signature");
     }
 }
+

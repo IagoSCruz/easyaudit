@@ -54,3 +54,33 @@ curl -s http://localhost:8081/realms/easyaudit/protocol/openid-connect/token \
 ```
 
 O token traz a claim `tenant_id` e os papéis em `realm_access.roles`.
+
+## Roteiro de testes ponta a ponta (Walkthrough)
+
+Para validar o fluxo completo do MVP localmente contra os serviços do Docker Compose:
+
+1. Suba os serviços:
+   ```bash
+   docker compose -f deploy/local/compose.yaml up -d
+   ```
+2. Inicie a aplicação com a chave de credenciais:
+   ```bash
+   export EASYAUDIT_CREDENTIALS_KEY="sLiLfgX+mcAzrDvOzyoOPnmAxdbgPDz3bnmG1zJkGlk="
+   ./mvnw -pl app spring-boot:run
+   ```
+3. Execute o roteiro interativo via REST Client / IntelliJ HTTP Client em [`docs/local-walkthrough.http`](docs/local-walkthrough.http) ou execute o script automatizado:
+   ```bash
+   ./docs/local-walkthrough.sh
+   ```
+
+O roteiro reproduz o fluxo ponta a ponta completo:
+- Onboarding do tenant (`PLATFORM_ADMIN`) e vínculo do tenant aos usuários no Keycloak
+- Emissão de credencial de webhook (`TENANT_ADMIN`)
+- Cadastro de transportadora e importação/ativação da tabela de frete
+- Ingestão de NF-e e CT-e assinados via webhook HMAC
+- Ingestão de cotação via webhook HMAC
+- Processamento assíncrono e auditoria do caso divergente (`AUDITOR`)
+- Abertura e resolução de contestação com o transportador
+- Criação, exportação CSV (BOM UTF-8 e `;`) e baixa manual do lote de pagamento (`FINANCE`)
+- Consulta aos indicadores consolidados e ranking de transportadoras no Dashboard
+

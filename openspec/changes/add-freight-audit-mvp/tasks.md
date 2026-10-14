@@ -137,8 +137,8 @@
 - [x] 15.1 Escrever um teste end-to-end com Testcontainers (PostgreSQL, RabbitMQ e Keycloak reais): onboarding do tenant → credencial → NF-e e CT-e por webhook → cotação → importação e ativação da tabela → auditoria → contestação → resolução → lote → exportação → baixa → indicadores do dashboard. Verificar que passa em `./mvnw verify`.
 - [x] 15.2 Escrever a suíte de isolamento que percorre todos os endpoints `GET` por id e as listagens com um usuário do tenant B contra os dados do tenant A. Verificar que todos retornam 404 ou listas vazias.
 - [x] 15.3 Ligar a validação de contrato global (todas as respostas REST dos testes de integração contra o OpenAPI e todos os eventos publicados contra os schemas). Verificar que a suíte completa passa sem nenhuma violação.
-- [ ] 15.4 Rodar a verificação final: `ApplicationModules.verify()`, teste de RLS, `./mvnw verify` verde, `./mvnw -pl app spring-boot:build-image` gerando a imagem e `openspec validate add-freight-audit-mvp --strict`. Verificar que todos passam.
-- [ ] 15.5 Adicionar `docs/local-walkthrough.http` (ou equivalente com `curl`) reproduzindo o fluxo do 15.1 contra o ambiente local e referenciá-lo no README. Verificar executando o roteiro inteiro contra `docker compose up` + aplicação local.
+- [x] 15.4 Rodar a verificação final: `ApplicationModules.verify()`, teste de RLS, `./mvnw verify` verde, `./mvnw -pl app spring-boot:build-image` gerando a imagem e `openspec validate add-freight-audit-mvp --strict`. Verificar que todos passam.
+- [x] 15.5 Adicionar `docs/local-walkthrough.http` (ou equivalente com `curl`) reproduzindo o fluxo do 15.1 contra o ambiente local e referenciá-lo no README. Verificar executando o roteiro inteiro contra `docker compose up` + aplicação local.
 
 ## Workflow follow-up
 

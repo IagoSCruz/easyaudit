@@ -1,0 +1,448 @@
+### ==============================================================================
+### EasyAudit - Roteiro de Testes Ponta a Ponta Local (Walkthrough E2E)
+### ==============================================================================
+### Este arquivo reproduz o fluxo completo do MVP contra o ambiente local:
+### Docker Compose (Keycloak, Postgres, RabbitMQ) + Aplicação EasyAudit.
+###
+### Compatível com a extensão REST Client (VS Code) e HTTP Client (IntelliJ).
+### Cada requisição documenta também o comando equivalente em `curl`.
+### ==============================================================================
+
+@host = http://localhost:8080
+@keycloak = http://localhost:8081
+@realm = easyaudit
+@clientId = easyaudit-api
+
+###
+### ------------------------------------------------------------------------------
+### 1. Obter Token de PLATFORM_ADMIN (Keycloak)
+### ------------------------------------------------------------------------------
+# @name loginPlatformAdmin
+POST {{keycloak}}/realms/{{realm}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id={{clientId}}&grant_type=password&username=admin.plataforma&password=senha123
+
+@platformToken = {{loginPlatformAdmin.response.body.access_token}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 2. Onboarding do Tenant (PLATFORM_ADMIN)
+### ------------------------------------------------------------------------------
+# @name createTenant
+POST {{host}}/admin/v1/tenants
+Authorization: Bearer {{platformToken}}
+Content-Type: application/json
+
+{
+  "name": "Lojista E2E Alpha",
+  "slug": "lojista-e2e-alpha",
+  "cnpjs": ["45.723.174/0001-10"]
+}
+
+@tenantId = {{createTenant.response.body.id}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 3. Login Admin do Keycloak para vincular o tenantId aos usuários de teste
+### ------------------------------------------------------------------------------
+# @name loginKeycloakMasterAdmin
+POST {{keycloak}}/realms/master/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id=admin-cli&grant_type=password&username=admin&password=admin
+
+@kcAdminToken = {{loginKeycloakMasterAdmin.response.body.access_token}}
+
+
+###
+### 3.1 Localizar Usuário admin.a no Keycloak
+###
+# @name getAdminA
+GET {{keycloak}}/admin/realms/{{realm}}/users?username=admin.a
+Authorization: Bearer {{kcAdminToken}}
+
+@adminAId = {{getAdminA.response.body.$[0].id}}
+
+###
+### 3.2 Atualizar atributo tenant_id do admin.a
+###
+PUT {{keycloak}}/admin/realms/{{realm}}/users/{{adminAId}}
+Authorization: Bearer {{kcAdminToken}}
+Content-Type: application/json
+
+{
+  "username": "admin.a",
+  "email": "admin.a@example.com",
+  "enabled": true,
+  "attributes": {
+    "tenant_id": ["{{tenantId}}"]
+  }
+}
+
+
+###
+### 3.3 Localizar Usuário auditor.a no Keycloak
+###
+# @name getAuditorA
+GET {{keycloak}}/admin/realms/{{realm}}/users?username=auditor.a
+Authorization: Bearer {{kcAdminToken}}
+
+@auditorAId = {{getAuditorA.response.body.$[0].id}}
+
+###
+### 3.4 Atualizar atributo tenant_id do auditor.a
+###
+PUT {{keycloak}}/admin/realms/{{realm}}/users/{{auditorAId}}
+Authorization: Bearer {{kcAdminToken}}
+Content-Type: application/json
+
+{
+  "username": "auditor.a",
+  "email": "auditor.a@example.com",
+  "enabled": true,
+  "attributes": {
+    "tenant_id": ["{{tenantId}}"]
+  }
+}
+
+
+###
+### 3.5 Localizar Usuário financeiro.a no Keycloak
+###
+# @name getFinanceiroA
+GET {{keycloak}}/admin/realms/{{realm}}/users?username=financeiro.a
+Authorization: Bearer {{kcAdminToken}}
+
+@financeiroAId = {{getFinanceiroA.response.body.$[0].id}}
+
+###
+### 3.6 Atualizar atributo tenant_id do financeiro.a
+###
+PUT {{keycloak}}/admin/realms/{{realm}}/users/{{financeiroAId}}
+Authorization: Bearer {{kcAdminToken}}
+Content-Type: application/json
+
+{
+  "username": "financeiro.a",
+  "email": "financeiro.a@example.com",
+  "enabled": true,
+  "attributes": {
+    "tenant_id": ["{{tenantId}}"]
+  }
+}
+
+
+###
+### ------------------------------------------------------------------------------
+### 4. Obtenção de Tokens JWT dos Papéis do Tenant
+### ------------------------------------------------------------------------------
+
+### 4.1 Token TENANT_ADMIN (admin.a)
+# @name loginTenantAdmin
+POST {{keycloak}}/realms/{{realm}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id={{clientId}}&grant_type=password&username=admin.a&password=senha123
+
+@tenantAdminToken = {{loginTenantAdmin.response.body.access_token}}
+
+### 4.2 Token AUDITOR (auditor.a)
+# @name loginAuditor
+POST {{keycloak}}/realms/{{realm}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id={{clientId}}&grant_type=password&username=auditor.a&password=senha123
+
+@auditorToken = {{loginAuditor.response.body.access_token}}
+
+### 4.3 Token FINANCE (financeiro.a)
+# @name loginFinance
+POST {{keycloak}}/realms/{{realm}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id={{clientId}}&grant_type=password&username=financeiro.a&password=senha123
+
+@financeToken = {{loginFinance.response.body.access_token}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 5. Criação de Credencial de Integração (Webhooks HMAC) - TENANT_ADMIN
+### ------------------------------------------------------------------------------
+# @name createCredential
+POST {{host}}/api/v1/tenant/integration-credentials
+Authorization: Bearer {{tenantAdminToken}}
+Content-Type: application/json
+
+{
+  "description": "Credencial Webhooks E2E Walkthrough"
+}
+
+@keyId = {{createCredential.response.body.keyId}}
+@secret = {{createCredential.response.body.secret}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 6. Cadastro da Transportadora (TENANT_ADMIN)
+### ------------------------------------------------------------------------------
+# @name createCarrier
+POST {{host}}/api/v1/carriers
+Authorization: Bearer {{tenantAdminToken}}
+Content-Type: application/json
+
+{
+  "cnpj": "11222333000181",
+  "name": "Transportadora Rápidos E2E"
+}
+
+@carrierId = {{createCarrier.response.body.id}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 7. Cadastro da Tabela de Frete (TENANT_ADMIN)
+### ------------------------------------------------------------------------------
+# @name createFreightTable
+POST {{host}}/api/v1/freight-tables
+Authorization: Bearer {{tenantAdminToken}}
+Content-Type: application/json
+
+{
+  "carrierId": "{{carrierId}}",
+  "content": {
+    "name": "Tabela T",
+    "validFrom": "2026-01-01",
+    "includesIcms": false,
+    "cubingFactor": 300,
+    "minimumFreight": 40.00,
+    "dispatchFee": 5.00,
+    "routes": [
+      {
+        "name": "SP capital",
+        "destinationCepFrom": "01000000",
+        "destinationCepTo": "09999999",
+        "weightBands": [
+          { "fromKg": 0, "toKg": 5, "price": 20.00 },
+          { "fromKg": 5, "toKg": 10, "price": 28.00 },
+          { "fromKg": 10, "toKg": 30, "price": 45.00 }
+        ],
+        "excessPerKg": 1.20,
+        "adValoremPercent": 0.30,
+        "adValoremMinimum": 2.00,
+        "grisPercent": 0.20,
+        "grisMinimum": 1.50,
+        "tollPer100Kg": 3.10
+      }
+    ],
+    "specialAreas": []
+  }
+}
+
+@tableId = {{createFreightTable.response.body.id}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 8. Ativação da Tabela de Frete (TENANT_ADMIN)
+### ------------------------------------------------------------------------------
+# @name activateFreightTable
+POST {{host}}/api/v1/freight-tables/{{tableId}}/activate
+Authorization: Bearer {{tenantAdminToken}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 9. Ingestão de NF-e e CT-e via Webhook HMAC
+### ------------------------------------------------------------------------------
+### OBS: Em clientes HTTP com suporte a HMAC/scripts prévios, os cabeçalhos são gerados
+### dinamicamente. Alternativamente, use o script `docs/local-walkthrough.sh`.
+### Os valores abaixo usam os arquivos assinados de `docs/fixtures/`.
+###
+### curl exemplo:
+### TS=$(date +%s)
+### BODY='{"documents":[{"name":"nfe.xml","contentBase64":"..."},{"name":"cte.xml","contentBase64":"..."}]}'
+### SIG=$(printf '%s.%s' "$TS" "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -hex | sed 's/^.* //')
+### curl -s -X POST "$HOST/webhooks/v1/documents" \
+###   -H "Content-Type: application/json" \
+###   -H "X-EasyAudit-Key-Id: $KEY_ID" \
+###   -H "X-EasyAudit-Timestamp: $TS" \
+###   -H "X-EasyAudit-Signature: sha256=$SIG" \
+###   -d "$BODY"
+###
+
+# @name ingestDocuments
+POST {{host}}/webhooks/v1/documents
+Content-Type: application/json
+X-EasyAudit-Key-Id: {{keyId}}
+X-EasyAudit-Timestamp: 1760440000
+X-EasyAudit-Signature: sha256=COLOQUE_A_ASSINATURA_HMAC_SE_RODAR_MANUALMENTE
+
+{
+  "documents": [
+    {
+      "name": "nfe.xml",
+      "contentBase64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+PG5mZVByb2MgeG1sbnM9Imh0dHA6Ly93d3cucG9ydGFsZmlzY2FsLmluZi5ici9uZmUiIHZlcnNhbz0iNC4wMCI+PE5GZT48aW5mTkZlIElkPSJORmUzNTI2MTA0NTcyMzE3NDAwMDExMDU1MDAxMDAwMDA5NTAxMTg3NjU0MzIxMCIgdmVyc2FvPSI0LjAwIj48aWRlPjxjVUY+MzU8L2NVRj48Y05GPjg3NjU0MzIxPC9jTkY+PG5hdE9wPlZFTkRBPC9uYXRPcD48bW9kPjU1PC9tb2Q+PHNlcmllPjE8L3NlcmllPjxuTkY+OTUwMTwvbk5GPjxkaEVtaT4yMDI2LTEwLTA5VDA5OjAwOjAwLTAzOjAwPC9kaEVtaT48dHBORj4xPC90cE5GPjxpZERlc3Q+MjwvaWREZXN0PjxjTXVuRkc+MzU1MDMwODwvY011bkZHPjx0cEltcD4xPC90cEltcD48dHBFbWlzPjE8L3RwRW1pcz48Y0RWPjA8L2NEVj48dHBBbWI+MTwvdHBBbWI+PGZpbk5GZT4xPC9maW5ORmU+PGluZEZpbmFsPjE8L2luZEZpbmFsPjxpbmRQcmVzPjI8L2luZFByZXM+PHByb2NFbWk+MDwvcHJvY0VtaT48dmVyUHJvYz4xLjA8L3ZlclByb2M+PC9pZGU+PGVtaXQ+PENOUEo+NDU3MjMxNzQwMDAxMTA8L0NOUEo+PHhOb21lPkxPSkEgRVhFTVBMTyBMVERBPC94Tm9tZT48ZW5kZXJFbWl0Pjx4TGdyPlJVQSBMT0pBPC94TGdyPjxucm8+MTA8L25ybz48eEJhaXJybz5DRU5UUk88L3hCYWlycm8+PGNNdW4+MzU1MDMwODwvY011bj48eE11bj5TYW8gUGF1bG88L3hNdW4+PFVGPlNQPC9VRj48Q0VQPjAxMzEwMTAwPC9DRVA+PC9lbmRlckVtaXQ+PElFPjMzMzMzMzMzMzMzMzwvSUU+PC9lbWl0PjxkZXN0PjxDTlBKPjk5ODg4Nzc3MDAwMTAwPC9DTlBKPjx4Tm9tZT5DTElFTlRFIEZJTkFMPC94Tm9tZT48ZW5kZXJEZXN0Pjx4TGdyPlJVQSBDTElFTlRFPC94TGdyPjxucm8+MjA8L25ybz48eEJhaXJybz5CQUlSUk88L3hCYWlycm8+PGNNdW4+MzMwNDU1NzwvY011bj48eE11bj5SaW8gZGUgSmFuZWlybzwveE11bj48VUY+Uko8L1VGPjxDRVA+MjAwNDAwMjA8L0NFUD48L2VuZGVyRGVzdD48aW5kSUVEZXN0Pjk8L2luZElFRGVzdD48L2Rlc3Q+PGRldCBuSXRlbT0iMSI+PHByb2Q+PGNQcm9kPlNLVTE8L2NQcm9kPjx4UHJvZD5QUk9EVVRPPC94UHJvZD48TkNNPjEyMzQ1Njc4PC9OQ00+PENGT1A+NjEwMjwvQ0ZPUD48dUNvbT5VTjwvdUNvbT48cUNvbT4xLjAwMDA8L3FDb20+PHZVbkNvbT40OTUwLjAwPC92VW5Db20+PHZQcm9kPjQ5NTAuMDA8L3ZQcm9kPjwvcHJvZD48L2RldD48dG90YWw+PElDTVNUb3Q+PHZQcm9kPjQ5NTAuMDA8L3ZQcm9kPjx2RnJldGU+NTAuMDA8L3ZGcmV0ZT48dk5GPjUwMDAuMDA8L3ZORj48L0lDTVNUb3Q+PC90b3RhbD48dHJhbnNwPjxtb2RGcmV0ZT4wPC9tb2RGcmV0ZT48dHJhbnNwb3J0YT48Q05QSj4xMTIyMjMzMzAwMDE4MTwvQ05QSj48eE5vbWU+VFJBTlNQT1JUQURPUkEgRVhFTVBMTzwveE5vbWU+PC90cmFuc3BvcnRhPjx2b2w+PHFWb2w+MTwvcVZvbD48ZXNwPkNBSVhBPC9lc3A+PHBlc29MPjEwLjAwMDwvcGVzb0w+PHBlc29CPjEyLjUwMDwvcGVzb0I+PC92b2w+PC90cmFuc3A+PC9pbmZORmU+PFNpZ25hdHVyZSB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC8wOS94bWxkc2lnIyI+PFNpZ25lZEluZm8+PENhbm9uaWNhbGl6YXRpb25NZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy9UUi8yMDAxL1JFQy14bWwtYzE0bi0yMDAxMDMxNSIvPjxTaWduYXR1cmVNZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjcnNhLXNoYTEiLz48UmVmZXJlbmNlIFVSST0iI05GZTM1MjYxMDQ1NzIzMTc0MDAwMTEwNTUwMDEwMDAwMDk1MDExODc2NTQzMjEwIj48VHJhbnNmb3Jtcz48VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMC8wOS94bWxkc2lnI2VudmVsb3BlZC1zaWduYXR1cmUiLz48VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvVFIvMjAwMS9SRUMteG1sLWMxNG4tMjAwMTAzMTUiLz48L1RyYW5zZm9ybXM+PERpZ2VzdE1ldGhvZCBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvMDkveG1sZHNpZyNzaGExIi8+PERpZ2VzdFZhbHVlPkswVGpNL1ByaWpXQmJFaitsdVFmMUJTMGY2OD08L0RpZ2VzdFZhbHVlPjwvUmVmZXJlbmNlPjwvU2lnbmVkSW5mbz48U2lnbmF0dXJlVmFsdWU+THZhY2Q4ZVFvcWxsb0Fnb0FuUWtsWDlxRk9QTU5pck9lYlJVa044RnNhTHF1bi9XQU5ZbVdXY3V4UjltbjM1V3FBeDBUeHRXYkl4dSYjMTM7Ck9WU3FOQWNXa1lnNnhXRkRuaElDeDdzVHUxTkFONWZLd2NYaDMreXppWlcwMXNKMUNqRXdoV1M5Skp6QWNtSGZSOHBsZmFLTm9FMGUmIzEzOworSHQvQUk4aGkvdzN5Q3F2NEkySGdvZ3BMcHg1MEsrTlhrWlN5dVBHR0hkZ1VtZUc1cFV5Y3lYQVRsTjM2SEpLWTl2dVZpVDg5RjhlJiMxMzsKMGxmVnZNWTFISjlsZzROaDRKekFmb2dhUnVhaWY1Tml4SUlDMmV0bkdFMmp0N3B6NDhVcVNMblhDQkNoMXZ0TVkyZnVBZnZmdFpjYyYjMTM7Cm1ZbjcyNG1VYS91YTlpR284enE5YlFKVTFpNFZxRWo3Tlg1dlJBPT08L1NpZ25hdHVyZVZhbHVlPjxLZXlJbmZvPjxYNTA5RGF0YT48WDUwOUNlcnRpZmljYXRlPk1JSUMwRENDQWJpZ0F3SUJBZ0lHQVhnQzg3THNNQTBHQ1NxR1NJYjNEUUVCQ3dVQU1Da3hKekFsQmdOVkJBTU1Ia1ZCVTFsQlZVUkomIzEzOwpWQ0JVUlZOVVJUb3hNVEl5TWpNek16QXdNREU0TVRBZUZ3MHlOakV3TVRNeE1UVTROVFZhRncweU56RXdNVFF4TVRVNE5UVmFNQ2t4JiMxMzsKSnpBbEJnTlZCQU1NSGtWQlUxbEJWVVJKVkNCVVJWTlVSVG94TVRJeU1qTXpNekF3TURFNE1UQ0NBU0l3RFFZSktvWklodmNOQVFFQiYjMTM7CkJRQURnZ0VQQURDQ0FRb0NnZ0VCQU4vYkllakVBUVJuRkZsNzBwd2tCMU9SbnNmYTBqa3crK3o5cC9hNCtmYWQ2Y25xV09IcHZHbUYmIzEzOwpRWGtUVjkwblpObTZkKzcrWHUxRUZpKzk5V0xMQzh2KzcyTGF4OHJ4Z1NXREdlMFZYWXVpajlvb2dSQU1CNXhjOHVhdE5LQ1R0RWlCJiMxMzsKQmpuNnRQWDBnTEMxeU5PYUd5VFBQZjVkOWxWaGE1Zk50WUdZbi9Lby9DaDlsd2FIUmd0K3ZuR1BOQXp4RUE1WFk4VUk4NFloWWhZMCYjMTM7CnB4VGJZMGw5bWNNMVI4SisrdGthZ3hCWnVEb0ljYVlpditEQ1lsK2dRWEpPVlhab3hHRjM0VlB2SUVLQlFvaTdPeHhzbHg0NCtzdGImIzEzOwpCNy9mL3JMT3kvUXQzaXhVMTBHamttdTdMazNTdW1hYzlSQlZxZVo5YVJ1cTJCSWNWQWFSKzdVV3pMc0NBd0VBQVRBTkJna3Foa2lHJiMxMzsKOXcwQkFRc0ZBQU9DQVFFQXVrekJlOVRWNE94Z2JVdXpsT3dvMzNPV1dLRmI4RzZSNzJDWFM2Q2YrVEd5Rk9IZWJTR2dGakU5VVZSSiYjMTM7CjBjalVKREwzRTdXNWZmbmJPczdEZ3VaOGlvTXluVVdkTytWQVhrZjgvaE9EcEx2aTRDcDhDajZydXVrUnY0RDRhS3RSbHRHU29pUDYmIzEzOwpGaGVmZzV2WC9JMXV1V1JQeWdTcXAzZ2NyTEtudkNxK2crWlErcXNGcStlRjZOSjcxeWl4NzJNTHVWa0tuVCtxY2V1KzVNRDlPbFlpJiMxMzsKQVdlWkZjQmdqMVY4ZkJldkFuazZiQWNvc0lMVnNNd0IxeHpaa1NwdkVSTEJmdTV4SXl3Rk9ab0ZNdkZkM0tyY2x6bXB2RGZqaVRGbCYjMTM7CjlQSHI0RFNQdlcxNVVKRkp5N1Z3UkpUZ0JxdGtGdktaUmpJZk1NVlNDTHpTSG5ORGJPVTR6UT09PC9YNTA5Q2VydGlmaWNhdGU+PC9YNTA5RGF0YT48L0tleUluZm8+PC9TaWduYXR1cmU+PC9ORmU+PHByb3RORmUgdmVyc2FvPSI0LjAwIj48aW5mUHJvdD48dHBBbWI+MTwvdHBBbWI+PHZlckFwbGljPlNQX05GRV9QTF8wMDk8L3ZlckFwbGljPjxjaE5GZT4zNTI2MTA0NTcyMzE3NDAwMDExMDU1MDAxMDAwMDA5NTAxMTg3NjU0MzIxMDwvY2hORmU+PGRoUmVjYnRvPjIwMjYtMTAtMDlUMDk6MDE6MDAtMDM6MDA8L2RoUmVjYnRvPjxuUHJvdD4xMzUyNjAwMDAwMDAwMDI8L25Qcm90PjxkaWdWYWw+YWJjPTwvZGlnVmFsPjxjU3RhdD4xMDA8L2NTdGF0Pjx4TW90aXZvPkF1dG9yaXphZG8gbyB1c28gZGEgTkYtZTwveE1vdGl2bz48L2luZlByb3Q+PC9wcm90TkZlPjwvbmZlUHJvYz4="
+    },
+    {
+      "name": "cte.xml",
+      "contentBase64": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+PGN0ZVByb2MgeG1sbnM9Imh0dHA6Ly93d3cucG9ydGFsZmlzY2FsLmluZi5ici9jdGUiIHZlcnNhbz0iNC4wMCI+PENUZT48aW5mQ3RlIElkPSJDVGUzNTI2MTAxMTIyMjMzMzAwMDE4MTU3MDAxMDAwMDA5NTAxMTEyMzQ1Njc4NiIgdmVyc2FvPSI0LjAwIj48aWRlPjxjVUY+MzU8L2NVRj48Y0NUPjEyMzQ1Njc4PC9jQ1Q+PENGT1A+NjM1MzwvQ0ZPUD48bmF0T3A+UFJFU1RBQ0FPIERFIFNFUlZJQ08gREUgVFJBTlNQT1JURTwvbmF0T3A+PG1vZD41NzwvbW9kPjxzZXJpZT4xPC9zZXJpZT48bkNUPjk1MDE8L25DVD48ZGhFbWk+MjAyNi0xMC0xMFQxMDoxNTozMC0wMzowMDwvZGhFbWk+PHRwSW1wPjE8L3RwSW1wPjx0cEVtaXM+MTwvdHBFbWlzPjxjRFY+NjwvY0RWPjx0cEFtYj4xPC90cEFtYj48dHBDVGU+MDwvdHBDVGU+PHByb2NFbWk+MDwvcHJvY0VtaT48dmVyUHJvYz4xLjA8L3ZlclByb2M+PGNNdW5FbnY+MzU1MDMwODwvY011bkVudj48eE11bkVudj5TYW8gUGF1bG88L3hNdW5FbnY+PFVGRW52PlNQPC9VRkVudj48bW9kYWw+MDE8L21vZGFsPjx0cFNlcnY+MDwvdHBTZXJ2PjxjTXVuSW5pPjM1NTAzMDg8L2NNdW5Jbmk+PHhNdW5Jbmk+U2FvIFBhdWxvPC94TXVuSW5pPjxVRkluaT5TUDwvVUZJbmk+PGNNdW5GaW0+MzU1MDMwODwvY011bkZpbT48eE11bkZpbT5TYW8gUGF1bG88L3hNdW5GaW0+PFVGRmltPlNQPC9VRkZpbT48cmV0aXJhPjE8L3JldGlyYT48aW5kSUVUb21hPjE8L2luZElFVG9tYT48dG9tYTM+PHRvbWE+MDwvdG9tYT48L3RvbWEzPjwvaWRlPjxlbWl0PjxDTlBKPjExMjIyMzMzMDAwMTgxPC9DTlBKPjxJRT4yMjIyMjIyMjIyMjI8L0lFPjx4Tm9tZT5UUkFOU1BPUlRBRE9SQSBFWEVNUExPIExUREE8L3hOb21lPjxlbmRlckVtaXQ+PHhMZ3I+QVYgVFJBTlNQT1JURTwveExncj48bnJvPjE8L25ybz48eEJhaXJybz5JTkRVU1RSSUFMPC94QmFpcnJvPjxjTXVuPjM1NTAzMDg8L2NNdW4+PHhNdW4+U2FvIFBhdWxvPC94TXVuPjxDRVA+MDEzMTAxMDA8L0NFUD48VUY+U1A8L1VGPjwvZW5kZXJFbWl0PjwvZW1pdD48cmVtPjxDTlBKPjQ1NzIzMTc0MDAwMTEwPC9DTlBKPjxJRT4xMTExMTExMTExMTE8L0lFPjx4Tm9tZT5SRU1FVEVOVEUgTE9KQTwveE5vbWU+PGVuZGVyUmVtZT48eExncj5SVUEgRVhFTVBMTzwveExncj48bnJvPjEwMDwvbnJvPjx4QmFpcnJvPkNFTlRSTzwveEJhaXJybz48Y011bj4zNTUwMzA4PC9jTXVuPjx4TXVuPlNhbyBQYXVsbzwveE11bj48Q0VQPjAxMzEwMTAwPC9DRVA+PFVGPlNQPC9VRj48L2VuZGVyUmVtZT48L3JlbT48ZGVzdD48Q05QSj45OTg4ODc3NzAwMDEwMDwvQ05QSj48SUU+MTExMTExMTExMTExPC9JRT48eE5vbWU+REVTVElOQVRBUklPIENMSUVOVEU8L3hOb21lPjxlbmRlckRlc3Q+PHhMZ3I+UlVBIEVYRU1QTE88L3hMZ3I+PG5ybz4xMDA8L25ybz48eEJhaXJybz5DRU5UUk88L3hCYWlycm8+PGNNdW4+MzU1MDMwODwvY011bj48eE11bj5TYW8gUGF1bG88L3hNdW4+PENFUD4wMTMxMDEwMDwvQ0VQPjxVRj5TUDwvVUY+PC9lbmRlckRlc3Q+PC9kZXN0Pjx2UHJlc3Q+PHZUUHJlc3Q+ODAuMDA8L3ZUUHJlc3Q+PHZSZWM+ODAuMDA8L3ZSZWM+PENvbXA+PHhOb21lPkZSRUlHSFRfV0VJR0hUPC94Tm9tZT48dkNvbXA+NTUuMDA8L3ZDb21wPjwvQ29tcD48Q29tcD48eE5vbWU+QURfVkFMT1JFTTwveE5vbWU+PHZDb21wPjMuMDA8L3ZDb21wPjwvQ29tcD48Q29tcD48eE5vbWU+R1JJUzwveE5vbWU+PHZDb21wPjIuMDA8L3ZDb21wPjwvQ29tcD48Q29tcD48eE5vbWU+VE9MTDwveE5vbWU+PHZDb21wPjMuMTA8L3ZDb21wPjwvQ29tcD48Q29tcD48eE5vbWU+RElTUEFUQ0hfRkVFPC94Tm9tZT48dkNvbXA+NS4wMDwvdkNvbXA+PC9Db21wPjxDb21wPjx4Tm9tZT5JQ01TPC94Tm9tZT48dkNvbXA+OS42MDwvdkNvbXA+PC9Db21wPjwvdlByZXN0PjxpbXA+PElDTVM+PElDTVMwMD48Q1NUPjAwPC9DU1Q+PHZCQz44MC4wMDwvdkJDPjxwSUNNUz4xMi4wMDwvcElDTVM+PHZJQ01TPjkuNjA8L3ZJQ01TPjwvSUNNUzAwPjwvSUNNUz48L2ltcD48aW5mQ1RlTm9ybT48aW5mQ2FyZ2E+PHZDYXJnYT4xMDAwLjAwPC92Q2FyZ2E+PHByb1ByZWQ+TUVSQ0FET1JJQVM8L3Byb1ByZWQ+PGluZlE+PGNVbmlkPjAxPC9jVW5pZD48dHBNZWQ+UEVTTyBCUlVUTzwvdHBNZWQ+PHFDYXJnYT4xMi41MDAwPC9xQ2FyZ2E+PC9pbmZRPjxpbmZRPjxjVW5pZD4wMDwvY1VuaWQ+PHRwTWVkPlZPTFVNRTwvdHBNZWQ+PHFDYXJnYT4wLjA1MDA8L3FDYXJnYT48L2luZlE+PC9pbmZDYXJnYT48aW5mRG9jPjxpbmZORmU+PGNoYXZlPjM1MjYxMDQ1NzIzMTc0MDAwMTEwNTUwMDEwMDAwMDk1MDExODc2NTQzMjEwPC9jaGF2ZT48L2luZk5GZT48L2luZkRvYz48L2luZkNUZU5vcm0+PC9pbmZDdGU+PFNpZ25hdHVyZSB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC8wOS94bWxkc2lnIyI+PFNpZ25lZEluZm8+PENhbm9uaWNhbGl6YXRpb25NZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy9UUi8yMDAxL1JFQy14bWwtYzE0bi0yMDAxMDMxNSIvPjxTaWduYXR1cmVNZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjcnNhLXNoYTEiLz48UmVmZXJlbmNlIFVSST0iI0NUZTM1MjYxMDExMjIyMzMzMDAwMTgxNTcwMDEwMDAwMDk1MDExMTIzNDU2Nzg2Ij48VHJhbnNmb3Jtcz48VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMC8wOS94bWxkc2lnI2VudmVsb3BlZC1zaWduYXR1cmUiLz48VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvVFIvMjAwMS9SRUMteG1sLWMxNG4tMjAwMTAzMTUiLz48L1RyYW5zZm9ybXM+PERpZ2VzdE1ldGhvZCBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvMDkveG1sZHNpZyNzaGExIi8+PERpZ2VzdFZhbHVlPjZXek1LWFZEYkhFQmhJNmxjTkJZL1hZcGlMUT08L0RpZ2VzdFZhbHVlPjwvUmVmZXJlbmNlPjwvU2lnbmVkSW5mbz48U2lnbmF0dXJlVmFsdWU+YTc2aUVUcFRaem1xRnZwUnVpU2R6eDJXd2VEWkt0dHdSQlNxYXJFdmdKYVNWaWRIaU9taTdGT1dKZ05SWWVORWlvY0FMeHVCanpDSCYjMTM7CktDall0L0tUOUhBRGYySHNLalE5MmpwSUdrbC9BM0I5YzMzb0JGOW1ob1c4dldaaW1nOHZqbktTeFRjZGhCVGlKYk9QakNmNjgyNlkmIzEzOwp2MDhHV0kxT21DT2hNOWpYU25aTWNtMkQrc3FFdGJJaFkvUEpMOTFyakprRHBtR1JoeXI0djlqTzlpaEdZQWpFK3RSTE1OcTA5K1Z1JiMxMzsKYUxHTThCd2gyVG1FWXFOcnF5bkxvSFQ1M2FkTndNbUpHUjJ3Vk12enc4dXJ2RFZWL1pZNTVUZHMzckZDcHRFSjBzNml0Z0p3VHNVcyYjMTM7Cm1jdmU3QkRVTGc2cUg0d044ejQ5YkM4L2xPblNCbVZHT3lQZFNnPT08L1NpZ25hdHVyZVZhbHVlPjxLZXlJbmZvPjxYNTA5RGF0YT48WDUwOUNlcnRpZmljYXRlPk1JSUMwRENDQWJpZ0F3SUJBZ0lHQVhnQzg3THNNQTBHQ1NxR1NJYjNEUUVCQ3dVQU1Da3hKekFsQmdOVkJBTU1Ia1ZCVTFsQlZVUkomIzEzOwpWQ0JVUlZOVVJUb3hNVEl5TWpNek16QXdNREU0TVRBZUZ3MHlOakV3TVRNeE1UVTROVFZhRncweU56RXdNVFF4TVRVNE5UVmFNQ2t4JiMxMzsKSnpBbEJnTlZCQU1NSGtWQlUxbEJWVVJKVkNCVVJWTlVSVG94TVRJeU1qTXpNekF3TURFNE1UQ0NBU0l3RFFZSktvWklodmNOQVFFQiYjMTM7CkJRQURnZ0VQQURDQ0FRb0NnZ0VCQU4vYkllakVBUVJuRkZsNzBwd2tCMU9SbnNmYTBqa3crK3o5cC9hNCtmYWQ2Y25xV09IcHZHbUYmIzEzOwpRWGtUVjkwblpObTZkKzcrWHUxRUZpKzk5V0xMQzh2KzcyTGF4OHJ4Z1NXREdlMFZYWXVpajlvb2dSQU1CNXhjOHVhdE5LQ1R0RWlCJiMxMzsKQmpuNnRQWDBnTEMxeU5PYUd5VFBQZjVkOWxWaGE1Zk50WUdZbi9Lby9DaDlsd2FIUmd0K3ZuR1BOQXp4RUE1WFk4VUk4NFloWWhZMCYjMTM7CnB4VGJZMGw5bWNNMVI4SisrdGthZ3hCWnVEb0ljYVlpditEQ1lsK2dRWEpPVlhab3hHRjM0VlB2SUVLQlFvaTdPeHhzbHg0NCtzdGImIzEzOwpCNy9mL3JMT3kvUXQzaXhVMTBHamttdTdMazNTdW1hYzlSQlZxZVo5YVJ1cTJCSWNWQWFSKzdVV3pMc0NBd0VBQVRBTkJna3Foa2lHJiMxMzsKOXcwQkFRc0ZBQU9DQVFFQXVrekJlOVRWNE94Z2JVdXpsT3dvMzNPV1dLRmI4RzZSNzJDWFM2Q2YrVEd5Rk9IZWJTR2dGakU5VVZSSiYjMTM7CjBjalVKREwzRTdXNWZmbmJPczdEZ3VaOGlvTXluVVdkTytWQVhrZjgvaE9EcEx2aTRDcDhDajZydXVrUnY0RDRhS3RSbHRHU29pUDYmIzEzOwpGaGVmZzV2WC9JMXV1V1JQeWdTcXAzZ2NyTEtudkNxK2crWlErcXNGcStlRjZOSjcxeWl4NzJNTHVWa0tuVCtxY2V1KzVNRDlPbFlpJiMxMzsKQVdlWkZjQmdqMVY4ZkJldkFuazZiQWNvc0lMVnNNd0IxeHpaa1NwdkVSTEJmdTV4SXl3Rk9ab0ZNdkZkM0tyY2x6bXB2RGZqaVRGbCYjMTM7CjlQSHI0RFNQdlcxNVVKRkp5N1Z3UkpUZ0JxdGtGdktaUmpJZk1NVlNDTHpTSG5ORGJPVTR6UT09PC9YNTA5Q2VydGlmaWNhdGU+PC9YNTA5RGF0YT48L0tleUluZm8+PC9TaWduYXR1cmU+PC9DVGU+PHByb3RDVGUgdmVyc2FvPSI0LjAwIj48aW5mUHJvdD48dHBBbWI+MTwvdHBBbWI+PHZlckFwbGljPlNQX0NURV9QTF80MDA8L3ZlckFwbGljPjxjaENUZT4zNTI2MTAxMTIyMjMzMzAwMDE4MTU3MDAxMDAwMDA5NTAxMTEyMzQ1Njc4NjwvY2hDVGU+PGRoUmVjYnRvPjIwMjYtMTAtMTBUMTA6MTY6MDAtMDM6MDA8L2RoUmVjYnRvPjxuUHJvdD4xMzUyNjAwMDAwMDAwMDE8L25Qcm90PjxkaWdWYWw+YWJjPTwvZGlnVmFsPjxjU3RhdD4xMDA8L2NTdGF0Pjx4TW90aXZvPkF1dG9yaXphZG8gbyB1c28gZG8gQ1QtZTwveE1vdGl2bz48L2luZlByb3Q+PC9wcm90Q1RlPjwvY3RlUHJvYz4="
+    }
+  ]
+}
+
+
+###
+### ------------------------------------------------------------------------------
+### 10. Ingestão da Cotação via Webhook HMAC
+### ------------------------------------------------------------------------------
+### curl exemplo:
+### TS=$(date +%s)
+### BODY='{"source":"INTELIPOST","externalId":"Q-9501","carrierCnpj":"11222333000181","service":"Rodoviário","amount":66.02,"quotedAt":"2026-10-09T10:00:00-03:00","destinationCep":"01310100","weightKg":12.5,"cargoValue":1000,"deliveryDays":5,"nfeKey":"35261045723174000110550010000095011876543210"}'
+### SIG=$(printf '%s.%s' "$TS" "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -hex | sed 's/^.* //')
+### curl -s -X POST "$HOST/webhooks/v1/quotes" \
+###   -H "Content-Type: application/json" \
+###   -H "X-EasyAudit-Key-Id: $KEY_ID" \
+###   -H "X-EasyAudit-Timestamp: $TS" \
+###   -H "X-EasyAudit-Signature: sha256=$SIG" \
+###   -d "$BODY"
+###
+
+# @name ingestQuote
+POST {{host}}/webhooks/v1/quotes
+Content-Type: application/json
+X-EasyAudit-Key-Id: {{keyId}}
+X-EasyAudit-Timestamp: 1760440000
+X-EasyAudit-Signature: sha256=COLOQUE_A_ASSINATURA_HMAC_SE_RODAR_MANUALMENTE
+
+{
+  "source": "INTELIPOST",
+  "externalId": "Q-9501",
+  "carrierCnpj": "11222333000181",
+  "service": "Rodoviário",
+  "amount": 66.02,
+  "quotedAt": "2026-10-09T10:00:00-03:00",
+  "destinationCep": "01310100",
+  "weightKg": 12.5,
+  "cargoValue": 1000,
+  "deliveryDays": 5,
+  "nfeKey": "35261045723174000110550010000095011876543210"
+}
+
+
+###
+### ------------------------------------------------------------------------------
+### 11. Listagem de Casos de Auditoria (AUDITOR)
+### ------------------------------------------------------------------------------
+### O processamento é assíncrono via RabbitMQ. Aguarde alguns instantes até o status
+### do caso passar a DIVERGENT (cobrado 80.00, calculado 66.02, divergência 13.98).
+###
+# @name listAudits
+GET {{host}}/api/v1/audits
+Authorization: Bearer {{auditorToken}}
+
+@caseId = {{listAudits.response.body.items[0].id}}
+@caseVersion = {{listAudits.response.body.items[0].version}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 12. Detalhe do Caso de Auditoria (AUDITOR)
+### ------------------------------------------------------------------------------
+GET {{host}}/api/v1/audits/{{caseId}}
+Authorization: Bearer {{auditorToken}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 13. Abertura de Contestação (AUDITOR)
+### ------------------------------------------------------------------------------
+# @name disputeAudit
+POST {{host}}/api/v1/audits/{{caseId}}/dispute
+Authorization: Bearer {{auditorToken}}
+Content-Type: application/json
+
+{
+  "version": {{caseVersion}},
+  "category": "VALUE_ABOVE_REFERENCE",
+  "description": "Frete cobrado acima da tabela negociada",
+  "amountDue": 66.02
+}
+
+@resolvedVersion = {{disputeAudit.response.body.version}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 14. Resolução da Contestação com Aprovação em R$ 66,02 (AUDITOR)
+### ------------------------------------------------------------------------------
+# @name resolveAudit
+POST {{host}}/api/v1/audits/{{caseId}}/resolve
+Authorization: Bearer {{auditorToken}}
+Content-Type: application/json
+
+{
+  "version": {{resolvedVersion}},
+  "agreedAmount": 66.02,
+  "note": "Transportadora aceitou o valor de tabela"
+}
+
+
+###
+### ------------------------------------------------------------------------------
+### 15. Criação de Lote de Pagamento (FINANCE)
+### ------------------------------------------------------------------------------
+# @name createPaymentBatch
+POST {{host}}/api/v1/payment-batches
+Authorization: Bearer {{financeToken}}
+Content-Type: application/json
+
+{
+  "dueDate": "2026-11-10",
+  "description": "Lote E2E Novembro",
+  "caseIds": ["{{caseId}}"]
+}
+
+@batchId = {{createPaymentBatch.response.body.batch.id}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 16. Exportação do Lote em CSV com BOM UTF-8 e ';' (FINANCE)
+### ------------------------------------------------------------------------------
+GET {{host}}/api/v1/payment-batches/{{batchId}}/export
+Authorization: Bearer {{financeToken}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 17. Baixa Manual do Lote de Pagamento (FINANCE)
+### ------------------------------------------------------------------------------
+POST {{host}}/api/v1/payment-batches/{{batchId}}/payment
+Authorization: Bearer {{financeToken}}
+Content-Type: application/json
+
+{
+  "paidOn": "2026-10-10",
+  "reference": "TED-E2E-20261010-001"
+}
+
+
+###
+### ------------------------------------------------------------------------------
+### 18. Indicadores Consolidados do Dashboard (AUDITOR)
+### ------------------------------------------------------------------------------
+GET {{host}}/api/v1/dashboard/summary?from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{auditorToken}}
+
+
+###
+### ------------------------------------------------------------------------------
+### 19. Ranking de Transportadoras no Dashboard (AUDITOR)
+### ------------------------------------------------------------------------------
+GET {{host}}/api/v1/dashboard/carriers?from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{auditorToken}}
+
