@@ -26,3 +26,9 @@ secrets/
 
 # Local tool settings
 .claude/settings.local.json
+
+# IA
+.agents
+.claude
+.github
+openspec/

@@ -1,22 +1,17 @@
 package br.com.easyaudit;
 
-import com.tngtech.archunit.base.DescribedPredicate;
-import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 import org.springframework.modulith.core.ApplicationModules;
 
 class ModularityTests {
 
-    private static final DescribedPredicate<JavaClass> PRODUCTION_CLASSES_ONLY =
-            DescribedPredicate.describe("production classes only",
-                    clazz -> !clazz.getSimpleName().endsWith("Test")
-                            && !clazz.getSimpleName().endsWith("Tests")
-                            && !clazz.getSimpleName().endsWith("IT")
-                            && !clazz.getPackageName().contains(".fixtures")
-                            && !clazz.getPackageName().contains(".testsupport"));
+    private static final ImportOption NO_TESTS = location ->
+            ImportOption.Predefined.DO_NOT_INCLUDE_TESTS.includes(location)
+                    && !location.contains("-tests.jar");
 
     @Test
     void verifiesModuleStructure() {
-        ApplicationModules.of(EasyAuditApplication.class, PRODUCTION_CLASSES_ONLY).verify();
+        ApplicationModules.of(EasyAuditApplication.class, NO_TESTS).verify();
     }
 }
